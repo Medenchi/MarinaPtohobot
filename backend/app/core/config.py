@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     storage_bucket_courses: str = Field(default="course-files", alias="STORAGE_BUCKET_COURSES")
     storage_bucket_pdfs: str = Field(default="outfit-pdfs", alias="STORAGE_BUCKET_PDFS")
 
-    public_web_url: str = Field(default="https://marina.denchy.cyou", alias="PUBLIC_WEB_URL")
+    public_web_url: str = Field(default="https://marinazau.denchy.cyou", alias="PUBLIC_WEB_URL")
     photographer_website_url: str = Field(
         default="https://zaugolnikova.ru/",
         alias="PHOTOGRAPHER_WEBSITE_URL",
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     jwt_ttl_hours: int = Field(default=24, alias="JWT_TTL_HOURS")
 
     cors_origins: str = Field(
-        default="http://localhost:5173,https://marina.denchy.cyou",
+        default="http://localhost:5173,https://marinazau.denchy.cyou",
         alias="CORS_ORIGINS",
     )
 
