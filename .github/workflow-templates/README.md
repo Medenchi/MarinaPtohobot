@@ -11,4 +11,4 @@ cannot push workflow files directly, so they live here. To enable them:
    - **Secret**: `VITE_SUPABASE_ANON_KEY`
 
 After that, `frontend.yml` will auto-deploy `frontend/` to GitHub Pages
-(custom domain `marina.denchy.cyou`) on every push to `main`.
+(custom domain `marinazau.denchy.cyou`) on every push to `main`.

@@ -41,10 +41,26 @@ docker compose up -d --build
 ```
 
 ### Фронтенд (GitHub Pages)
-1. Variables: `VITE_SUPABASE_URL`, `VITE_API_URL` (например `https://api.marina.denchy.cyou`)
+1. Variables: `VITE_SUPABASE_URL`, `VITE_API_URL` (например `https://api.marinazau.denchy.cyou`)
 2. Secrets: `VITE_SUPABASE_ANON_KEY`
 3. Settings → Pages → Source: GitHub Actions
-4. Push в `main` → workflow задеплоит на `marina.denchy.cyou`
+4. Custom domain: `marinazau.denchy.cyou` (Save → дождись DNS check → включи Enforce HTTPS)
+5. Push в `main` → workflow задеплоит на `marinazau.denchy.cyou`
+
+### DNS — поддомен `marinazau` на Cloudflare → GitHub Pages
+В Cloudflare на зоне `denchy.cyou`:
+1. DNS → **Add record**
+   - Type: **CNAME**
+   - Name: `marinazau` (только сабдомен, без `.denchy.cyou`)
+   - Target: `medenchi.github.io` (твой GitHub username + `.github.io`, без слэшей)
+   - Proxy status: **DNS only** (серое облачко). После того как GitHub Pages выдаст HTTPS-сертификат, можно включить proxy (оранжевое облачко) для CDN/защиты.
+   - TTL: Auto
+2. Сохрани. Проверь `dig marinazau.denchy.cyou +short` — должен показать `medenchi.github.io` и IP-адреса GitHub Pages.
+3. В репо: Settings → Pages → Custom domain → `marinazau.denchy.cyou` → Save.
+4. Подожди 5–15 минут пока GitHub выпустит SSL-сертификат (зелёная галка появится в Pages settings).
+5. Поставь галку **Enforce HTTPS**.
+
+Файл `frontend/public/CNAME` уже содержит `marinazau.denchy.cyou` — Vite копирует его в `dist/` при билде, GitHub Pages его читает.
 
 ## Локальная разработка
 

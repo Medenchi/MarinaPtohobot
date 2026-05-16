@@ -44,7 +44,7 @@ jobs:
         run: npm run build
 
       - name: Add CNAME
-        run: echo "${{ vars.CUSTOM_DOMAIN || 'marina.denchy.cyou' }}" > dist/CNAME
+        run: echo "${{ vars.CUSTOM_DOMAIN || 'marinazau.denchy.cyou' }}" > dist/CNAME
 
       - name: Add SPA fallback
         run: cp dist/index.html dist/404.html
