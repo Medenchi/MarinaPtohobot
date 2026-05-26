@@ -8,12 +8,11 @@ import os
 import sys
 
 import uvicorn
-from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
+from aiogram import Dispatcher
 
 from app.api.main import app as fastapi_app
-from app.bot.handlers import courses, quiz, start
+from app.bot.main import shared_bot
+from app.bot.runtime.engine import make_router
 from app.core.config import settings
 
 logging.basicConfig(
@@ -25,16 +24,14 @@ log = logging.getLogger(__name__)
 
 
 async def _run_bot() -> None:
-    bot = Bot(
-        token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
+    bot = shared_bot()
     dp = Dispatcher()
-    dp.include_router(start.router)
-    dp.include_router(quiz.router)
-    dp.include_router(courses.router)
-    log.info("Bot polling started")
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    dp.include_router(make_router())
+    log.info("Bot polling started (constructor runtime)")
+    try:
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    finally:
+        await bot.session.close()
 
 
 async def _run_api() -> None:
@@ -53,9 +50,9 @@ async def main() -> None:
     if not settings.supabase_url or not settings.supabase_service_role_key:
         log.error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set. Exiting.")
         sys.exit(1)
-    if not settings.admin_password:
+    if not settings.admin_password or not settings.mama_password:
         log.warning(
-            "ADMIN_PASSWORD is empty — admin login will reject all requests.",
+            "ADMIN_PASSWORD or MAMA_PASSWORD is empty - that role will reject all logins.",
         )
 
     await asyncio.gather(_run_bot(), _run_api())

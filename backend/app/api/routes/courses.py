@@ -10,12 +10,12 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app.api.auth import require_admin
+from app.api.auth import require_mama
 from app.core.config import settings
 from app.core.supabase import get_supabase
 
 log = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_mama)])
 
 
 class CourseIn(BaseModel):

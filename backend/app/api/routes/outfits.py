@@ -10,12 +10,12 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app.api.auth import require_admin
+from app.api.auth import require_mama
 from app.core.config import settings
 from app.core.supabase import get_supabase
 
 log = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_mama)])
 
 
 class OutfitIn(BaseModel):
@@ -30,6 +30,8 @@ class OutfitIn(BaseModel):
     shoot_types: str = ""
     price_hint: str | None = None
     external_url: str | None = None
+    pinterest_url: str | None = None
+    tags: dict[str, Any] = {}
     sort_order: int = 0
     is_published: bool = True
 
@@ -46,6 +48,8 @@ class OutfitPatch(BaseModel):
     shoot_types: str | None = None
     price_hint: str | None = None
     external_url: str | None = None
+    pinterest_url: str | None = None
+    tags: dict[str, Any] | None = None
     sort_order: int | None = None
     is_published: bool | None = None
 

@@ -1,0 +1,251 @@
+"""Flow execution engine — drives the bot from a JSON graph.
+
+The engine is the single aiogram catch-all. On each incoming update it:
+
+1. Loads / creates the user's :class:`Session` (Supabase ``bot_sessions``).
+2. Resolves which node to execute (trigger lookup, awaiting-input answer,
+   callback target).
+3. Walks forward through the graph executing blocks until it hits a block
+   that pauses (``ask_question``) or ``end``.
+4. Persists the session.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from typing import Any
+
+from aiogram import Bot, Router
+from aiogram.filters import Command, CommandStart
+from aiogram.types import CallbackQuery, Message
+
+from app.bot.runtime import blocks, registry, state
+from app.bot.runtime.keyboards import parse_cb
+from app.bot.runtime.vars import build_context
+
+log = logging.getLogger(__name__)
+
+MAX_STEPS = 50  # safety net against infinite loops in user-authored graphs
+
+
+@dataclass(slots=True)
+class ExecutionContext:
+    """Per-update execution scratch space."""
+
+    chat_id: int
+    session: state.Session
+    tg_user: dict[str, Any]
+    flow_id: str | None
+    graph: dict[str, Any]
+    nodes: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    @property
+    def vars(self) -> dict[str, Any]:
+        return self.session.vars
+
+    @property
+    def template_ctx(self) -> dict[str, Any]:
+        return build_context(vars_=self.vars, user=self.tg_user)
+
+
+async def _execute_from(bot: Bot, ctx: ExecutionContext, start_node_id: str) -> None:
+    node_id: str | None = start_node_id
+    steps = 0
+    while node_id and steps < MAX_STEPS:
+        node = ctx.nodes.get(node_id)
+        if not node:
+            log.warning("Node %s not found in flow %s", node_id, ctx.flow_id)
+            break
+        ctx.session.current_node_id = node_id
+        ntype = node.get("type")
+        if ntype in blocks.TRIGGER_TYPES:
+            # Triggers don't execute; just walk to their `next`.
+            node_id = node.get("next")
+            steps += 1
+            continue
+        fn = blocks.BLOCKS.get(ntype or "")
+        if fn is None:
+            log.warning("Unknown block type %r at node %s", ntype, node_id)
+            break
+        try:
+            node_id = await fn(bot, ctx, node)
+        except Exception:
+            log.exception("Block %s (%s) crashed", node_id, ntype)
+            state.log_event(
+                telegram_id=ctx.tg_user.get("id"),
+                telegram_username=ctx.tg_user.get("username"),
+                flow_id=ctx.flow_id,
+                node_id=node_id,
+                event_type="block_error",
+                payload={"block_type": ntype},
+            )
+            break
+        if ctx.session.awaiting_input:
+            # ask_question called — pause here. current_node_id was set above.
+            return
+        steps += 1
+    if not node_id:
+        ctx.session.awaiting_input = False
+        ctx.session.current_node_id = None
+
+
+async def _make_ctx(bot: Bot, chat_id: int, tg_user_obj: Any) -> ExecutionContext | None:
+    flow = registry.published_flow()
+    if not flow:
+        await bot.send_message(
+            chat_id=chat_id,
+            text="Бот пока не настроен. Загляни позже.",
+        )
+        return None
+    graph = flow.get("graph") or {}
+    session = state.load(tg_user_obj.id)
+    session.flow_id = flow["id"]
+    return ExecutionContext(
+        chat_id=chat_id,
+        session=session,
+        tg_user=state.user_to_vars(tg_user_obj),
+        flow_id=flow["id"],
+        graph=graph,
+        nodes=registry.index_nodes(graph),
+    )
+
+
+def make_router() -> Router:
+    router = Router(name="flow_runtime")
+
+    @router.message(CommandStart(deep_link=True))
+    @router.message(CommandStart())
+    @router.message(Command(commands=["help", "menu", "reset", "stop"]))
+    async def on_command(message: Message) -> None:
+        await _handle_message(message, command_hint=_extract_command(message.text))
+
+    @router.message()
+    async def on_any_message(message: Message) -> None:
+        await _handle_message(message, command_hint=_extract_command(message.text))
+
+    @router.callback_query()
+    async def on_callback(cq: CallbackQuery) -> None:
+        await _handle_callback(cq)
+
+    return router
+
+
+def _extract_command(text: str | None) -> str | None:
+    if not text or not text.startswith("/"):
+        return None
+    head = text.split()[0]
+    cmd = head[1:].split("@", 1)[0]
+    return cmd or None
+
+
+async def _handle_message(message: Message, *, command_hint: str | None) -> None:
+    if not message.from_user or not message.chat:
+        return
+    bot = message.bot
+    if bot is None:
+        return
+    state.upsert_bot_user(message.from_user)
+    ctx = await _make_ctx(bot, message.chat.id, message.from_user)
+    if ctx is None:
+        return
+
+    target_node_id: str | None = None
+
+    # 1) Commands always (re)start a flow if a matching trigger exists.
+    if command_hint:
+        trig = registry.find_trigger(ctx.graph, command=command_hint)
+        if trig:
+            target_node_id = trig.get("next") or trig["id"]
+            ctx.session.awaiting_input = False
+            # Reset vars on /start unless the trigger explicitly opts out.
+            if command_hint == "start" and not (trig.get("params") or {}).get("keep_vars"):
+                ctx.session.vars = {}
+                # Re-build context now that vars are reset
+                ctx = ExecutionContext(
+                    chat_id=ctx.chat_id,
+                    session=ctx.session,
+                    tg_user=ctx.tg_user,
+                    flow_id=ctx.flow_id,
+                    graph=ctx.graph,
+                    nodes=ctx.nodes,
+                )
+
+    # 2) Mid-question answer: capture text and resume.
+    if target_node_id is None and ctx.session.awaiting_input and ctx.session.current_node_id:
+        current = ctx.nodes.get(ctx.session.current_node_id)
+        if current and current.get("type") == "ask_question":
+            params = current.get("params") or {}
+            var = params.get("variable")
+            if var:
+                ctx.vars[str(var)] = message.text or ""
+            ctx.session.awaiting_input = False
+            target_node_id = current.get("next")
+
+    # 3) Free-text trigger fallback.
+    if target_node_id is None and message.text:
+        trig = registry.find_trigger(ctx.graph, text=message.text)
+        if trig:
+            target_node_id = trig.get("next") or trig["id"]
+
+    state.log_event(
+        telegram_id=ctx.tg_user.get("id"),
+        telegram_username=ctx.tg_user.get("username"),
+        flow_id=ctx.flow_id,
+        node_id=target_node_id,
+        event_type="message",
+        payload={"text": (message.text or "")[:200]},
+    )
+
+    if target_node_id is None:
+        # No-op — nothing matched. Keep the session as-is.
+        state.save(ctx.session)
+        return
+
+    await _execute_from(bot, ctx, target_node_id)
+    state.save(ctx.session)
+
+
+async def _handle_callback(cq: CallbackQuery) -> None:
+    if not cq.from_user or not cq.message or not cq.message.chat:
+        return
+    bot = cq.bot
+    if bot is None:
+        return
+    parsed = parse_cb(cq.data or "")
+    if parsed is None:
+        await cq.answer()
+        return
+    target_node_id, value = parsed
+    state.upsert_bot_user(cq.from_user)
+    ctx = await _make_ctx(bot, cq.message.chat.id, cq.from_user)
+    if ctx is None:
+        await cq.answer()
+        return
+
+    # If the user clicked an ask_question option, record it.
+    if ctx.session.awaiting_input and ctx.session.current_node_id:
+        current = ctx.nodes.get(ctx.session.current_node_id)
+        if current and current.get("type") == "ask_question":
+            var = (current.get("params") or {}).get("variable")
+            if var:
+                ctx.vars[str(var)] = value if value is not None else (cq.data or "")
+            ctx.session.awaiting_input = False
+            # If the button's target *is* the question itself (the answer-recording
+            # convention used by ask_question), advance to its real `next`.
+            if target_node_id == current["id"]:
+                target_node_id = current.get("next") or ""
+
+    state.log_event(
+        telegram_id=ctx.tg_user.get("id"),
+        telegram_username=ctx.tg_user.get("username"),
+        flow_id=ctx.flow_id,
+        node_id=target_node_id,
+        event_type="callback",
+        payload={"value": value, "raw": cq.data},
+    )
+
+    await cq.answer()
+    if target_node_id:
+        await _execute_from(bot, ctx, target_node_id)
+    state.save(ctx.session)

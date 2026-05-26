@@ -22,6 +22,7 @@ uvicorn = {version = ">=0.32.0", extras = ["standard"]}
 python-multipart = ">=0.0.20"
 python-jose = {version = ">=3.3.0", extras = ["cryptography"]}
 aiofiles = ">=24.1.0"
+reportlab = ">=4.2.5"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -53,4 +54,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"app/bot/handlers/quiz.py" = ["B904"]
+"app/bot/runtime/preview.py" = ["E501"]
+"app/bot/runtime/blocks.py" = ["BLE001", "E501"]
+"app/bot/runtime/engine.py" = ["BLE001", "SLF001"]
+"app/bot/runtime/pdf.py" = ["BLE001"]
