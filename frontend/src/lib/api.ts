@@ -7,9 +7,13 @@ import type { Role } from "@/types";
 
 const STORAGE_PREFIX = "marina:token:";
 
-export const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ||
-  "http://localhost:8000";
+// Read API URL from either VITE_API_URL (used in CI / GH Pages vars) or
+// VITE_API_BASE_URL (legacy fallback). Trailing slash trimmed.
+export const API_BASE = (
+  (import.meta.env.VITE_API_URL as string | undefined) ||
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+  "http://localhost:8000"
+).replace(/\/$/, "");
 
 export function tokenFor(role: Role): string | null {
   return localStorage.getItem(STORAGE_PREFIX + role);
