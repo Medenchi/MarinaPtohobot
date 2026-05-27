@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { tokenFor } from "@/lib/api";
+import { tokenFor } from "@/lib/supabase";
 import type { Role } from "@/types";
 
 export default function AuthGuard({

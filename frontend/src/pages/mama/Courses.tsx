@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash, UploadSimple } from "@phosphor-icons/react";
-import { api, API_BASE, tokenFor } from "@/lib/api";
+import {
+  deleteCourse,
+  listCourses,
+  uploadCourseFile,
+  upsertCourse,
+} from "@/lib/api";
 import { TextArea, TextField, Switch } from "@/components/Field";
 import MamaLayout from "./Layout";
 import type { Course } from "@/types";
@@ -9,12 +14,16 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Course | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
+    setError(null);
     try {
-      const rows = await api.mama.get<Course[]>("/api/admin/courses");
+      const rows = await listCourses();
       setCourses(rows);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -24,28 +33,33 @@ export default function Courses() {
   }, []);
 
   async function save(c: Partial<Course>) {
-    if (c.id) await api.mama.patch(`/api/admin/courses/${c.id}`, c);
-    else await api.mama.post("/api/admin/courses", c);
-    setEditing(null);
-    await load();
+    setError(null);
+    try {
+      await upsertCourse(c);
+      setEditing(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   async function remove(id: number) {
     if (!confirm("Удалить курс?")) return;
-    await api.mama.del(`/api/admin/courses/${id}`);
-    await load();
+    try {
+      await deleteCourse(id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   async function uploadFile(courseId: number, file: File) {
-    const fd = new FormData();
-    fd.append("file", file);
-    const token = tokenFor("mama");
-    await fetch(`${API_BASE}/api/admin/courses/${courseId}/file`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: fd,
-    });
-    await load();
+    try {
+      await uploadCourseFile(courseId, file);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   if (editing) {
@@ -56,6 +70,7 @@ export default function Courses() {
           onSave={save}
           onCancel={() => setEditing(null)}
           onUploadFile={uploadFile}
+          error={error}
         />
       </MamaLayout>
     );
@@ -84,6 +99,7 @@ export default function Courses() {
           <Plus size={14} weight="thin" /> Новый курс
         </button>
       </div>
+      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
       {loading ? (
         <p className="text-sm text-muted">Загрузка…</p>
       ) : courses.length === 0 ? (
@@ -96,6 +112,7 @@ export default function Courses() {
                 <h3 className="font-medium truncate">{c.title}</h3>
                 <p className="text-xs text-muted truncate">{c.description}</p>
                 <p className="text-[10px] text-muted">slug: {c.slug}</p>
+                {!c.is_published && <span className="text-[10px] text-red-600">черновик</span>}
               </div>
               <div className="flex gap-1 shrink-0">
                 <button onClick={() => setEditing(c)} className="text-muted hover:text-ink">
@@ -118,11 +135,13 @@ function CourseForm({
   onSave,
   onCancel,
   onUploadFile,
+  error,
 }: {
   initial: Course;
   onSave: (c: Partial<Course>) => Promise<void>;
   onCancel: () => void;
   onUploadFile: (id: number, f: File) => Promise<void>;
+  error?: string | null;
 }) {
   const [form, setForm] = useState<Course>(initial);
   function patch<K extends keyof Course>(key: K, value: Course[K]) {
@@ -163,6 +182,9 @@ function CourseForm({
           </label>
         </div>
       )}
+
+      {error && <p className="text-xs text-red-600">{error}</p>}
+
       <div className="flex gap-2 justify-end pt-2">
         <button onClick={onCancel} className="btn-outline">
           Отмена

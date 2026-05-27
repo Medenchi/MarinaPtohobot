@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "@phosphor-icons/react";
-import { api, setToken } from "@/lib/api";
+import { login } from "@/lib/api";
+import { setToken } from "@/lib/supabase";
 import { TextField } from "@/components/Field";
 import Footer from "@/components/Footer";
 import type { Role } from "@/types";
@@ -24,7 +25,7 @@ export default function LoginPage({ role, title, subtitle, successRedirect }: Pr
     setError(null);
     setLoading(true);
     try {
-      const resp = await api.login(role, password);
+      const resp = await login(role, password);
       setToken(role, resp.token);
       navigate(successRedirect, { replace: true });
     } catch (err) {

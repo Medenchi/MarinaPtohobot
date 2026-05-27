@@ -1,21 +1,33 @@
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash, UploadSimple } from "@phosphor-icons/react";
-import { api, API_BASE, tokenFor } from "@/lib/api";
+import { Pencil, Plus, Trash, UploadSimple, X } from "@phosphor-icons/react";
+import {
+  deleteOutfit,
+  deleteOutfitImage,
+  listOutfits,
+  outfitImageUrl,
+  uploadOutfitImage,
+  upsertOutfit,
+} from "@/lib/api";
 import { TextArea, TextField, Switch } from "@/components/Field";
 import MamaLayout from "./Layout";
-import type { Outfit } from "@/types";
+import type { Outfit, OutfitImage } from "@/types";
+
+type OutfitWithImages = Outfit & { outfit_images: OutfitImage[] };
 
 export default function Outfits() {
-  const [outfits, setOutfits] = useState<Outfit[]>([]);
+  const [outfits, setOutfits] = useState<OutfitWithImages[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<Outfit | null>(null);
+  const [editing, setEditing] = useState<OutfitWithImages | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
+    setError(null);
     try {
-      const rows = await api.mama.get<Outfit[]>("/api/admin/outfits");
+      const rows = await listOutfits();
       setOutfits(rows);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -27,11 +39,7 @@ export default function Outfits() {
   async function save(o: Partial<Outfit>) {
     setError(null);
     try {
-      if ("id" in o && o.id) {
-        await api.mama.patch(`/api/admin/outfits/${o.id}`, o);
-      } else {
-        await api.mama.post("/api/admin/outfits", o);
-      }
+      await upsertOutfit(o);
       setEditing(null);
       await load();
     } catch (err) {
@@ -41,24 +49,38 @@ export default function Outfits() {
 
   async function remove(id: number) {
     if (!confirm("Удалить образ?")) return;
-    await api.mama.del(`/api/admin/outfits/${id}`);
-    await load();
+    try {
+      await deleteOutfit(id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   async function uploadImage(outfitId: number, file: File) {
-    const fd = new FormData();
-    fd.append("file", file);
-    const token = tokenFor("mama");
-    const resp = await fetch(`${API_BASE}/api/admin/outfits/${outfitId}/images`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: fd,
-    });
-    if (!resp.ok) {
-      alert("Не удалось загрузить");
-      return;
+    try {
+      await uploadOutfitImage(outfitId, file);
+      await load();
+      // Re-open the same outfit with refreshed images.
+      const fresh = (await listOutfits()).find((o) => o.id === outfitId);
+      if (fresh) setEditing(fresh);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
-    await load();
+  }
+
+  async function removeImage(img: OutfitImage) {
+    if (!confirm("Удалить картинку?")) return;
+    try {
+      await deleteOutfitImage(img);
+      await load();
+      if (editing) {
+        const fresh = (await listOutfits()).find((o) => o.id === editing.id);
+        if (fresh) setEditing(fresh);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   if (editing) {
@@ -69,6 +91,7 @@ export default function Outfits() {
           onSave={save}
           onCancel={() => setEditing(null)}
           onUploadImage={uploadImage}
+          onRemoveImage={removeImage}
           error={error}
         />
       </MamaLayout>
@@ -98,6 +121,7 @@ export default function Outfits() {
               tags: null,
               sort_order: 0,
               is_published: true,
+              outfit_images: [],
             })
           }
           className="btn-primary"
@@ -105,6 +129,7 @@ export default function Outfits() {
           <Plus size={14} weight="thin" /> Добавить образ
         </button>
       </div>
+      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
       {loading ? (
         <p className="text-sm text-muted">Загрузка…</p>
       ) : outfits.length === 0 ? (
@@ -113,6 +138,13 @@ export default function Outfits() {
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {outfits.map((o) => (
             <li key={o.id} className="card">
+              {o.outfit_images?.[0] && (
+                <img
+                  src={outfitImageUrl(o.outfit_images[0].storage_path)}
+                  alt=""
+                  className="w-full h-32 object-cover rounded mb-2"
+                />
+              )}
               <div className="flex justify-between items-start gap-2">
                 <div className="min-w-0">
                   <h3 className="font-medium truncate">{o.title}</h3>
@@ -154,16 +186,18 @@ function OutfitForm({
   onSave,
   onCancel,
   onUploadImage,
+  onRemoveImage,
   error,
 }: {
-  initial: Outfit;
+  initial: OutfitWithImages;
   onSave: (o: Partial<Outfit>) => Promise<void>;
   onCancel: () => void;
   onUploadImage: (id: number, f: File) => Promise<void>;
+  onRemoveImage: (img: OutfitImage) => Promise<void>;
   error?: string | null;
 }) {
-  const [form, setForm] = useState<Outfit>(initial);
-  function patch<K extends keyof Outfit>(key: K, value: Outfit[K]) {
+  const [form, setForm] = useState<OutfitWithImages>(initial);
+  function patch<K extends keyof OutfitWithImages>(key: K, value: OutfitWithImages[K]) {
     setForm((p) => ({ ...p, [key]: value }));
   }
   return (
@@ -208,12 +242,28 @@ function OutfitForm({
       {form.id > 0 && (
         <div>
           <span className="block text-xs uppercase tracking-tighter text-muted mb-1">Картинки</span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mb-2">
             {(form.outfit_images || []).map((img) => (
-              <span key={img.id} className="text-[10px] text-muted">{img.storage_path}</span>
+              <div key={img.id} className="relative">
+                <img
+                  src={outfitImageUrl(img.storage_path)}
+                  alt=""
+                  className="w-20 h-20 object-cover rounded border border-line"
+                />
+                <button
+                  onClick={() => void onRemoveImage(img)}
+                  className="absolute -top-1 -right-1 bg-white border border-line rounded-full p-0.5 hover:text-red-600"
+                  title="Удалить картинку"
+                >
+                  <X size={10} weight="thin" />
+                </button>
+              </div>
             ))}
+            {(form.outfit_images || []).length === 0 && (
+              <p className="text-xs text-muted">пока пусто</p>
+            )}
           </div>
-          <label className="btn-outline mt-2 cursor-pointer">
+          <label className="btn-outline cursor-pointer">
             <UploadSimple size={14} weight="thin" /> Загрузить картинку
             <input
               type="file"

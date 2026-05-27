@@ -10,8 +10,16 @@ import {
   Trash,
   UploadSimple,
 } from "@phosphor-icons/react";
-import { api, clearToken } from "@/lib/api";
+import {
+  createFlow,
+  deleteFlow,
+  duplicateFlow,
+  getFlow,
+  listFlows,
+} from "@/lib/api";
+import { clearToken } from "@/lib/supabase";
 import { downloadJson, readJsonFile } from "@/lib/util";
+import { SEED_GRAPH } from "@/lib/seedGraph";
 import Footer from "@/components/Footer";
 import type { FlowSummary } from "@/types";
 
@@ -26,7 +34,7 @@ export default function FlowList() {
     setLoading(true);
     setError(null);
     try {
-      const rows = await api.admin.get<FlowSummary[]>("/api/admin/flows");
+      const rows = await listFlows();
       setFlows(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -41,12 +49,14 @@ export default function FlowList() {
   async function newFlow() {
     setBusy(true);
     try {
-      const f = await api.admin.post<FlowSummary>("/api/admin/flows", {
+      const f = await createFlow({
         name: "Новый флоу",
         description: "",
         graph: { nodes: [], edges: [] },
       });
       navigate(`/admin/flows/${f.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -55,8 +65,15 @@ export default function FlowList() {
   async function seedFlow() {
     setBusy(true);
     try {
-      const f = await api.admin.post<FlowSummary>("/api/admin/flows/seed");
+      const f = await createFlow({
+        name: "Стартовый флоу: квиз + образы",
+        description:
+          "Шаблон: /start → серия вопросов → подбор образов из таблицы outfits → выдача с водяным знаком.",
+        graph: SEED_GRAPH,
+      });
       navigate(`/admin/flows/${f.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -65,28 +82,35 @@ export default function FlowList() {
   async function duplicate(id: string) {
     setBusy(true);
     try {
-      await api.admin.post(`/api/admin/flows/${id}/duplicate`);
+      await duplicateFlow(id);
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
   }
 
   async function exportFlow(id: string, name: string) {
-    const data = await api.admin.get(`/api/admin/flows/${id}/export`);
-    downloadJson(data, `${name.replace(/\s+/g, "_")}.flow.json`);
+    const f = await getFlow(id);
+    downloadJson(
+      { name: f.name, description: f.description, graph: f.graph },
+      `${name.replace(/\s+/g, "_")}.flow.json`,
+    );
   }
 
   async function importFlow(file: File) {
     setBusy(true);
     try {
       const data = await readJsonFile<{ name?: string; description?: string; graph: unknown }>(file);
-      const f = await api.admin.post<FlowSummary>("/api/admin/flows/import", {
+      const f = await createFlow({
         name: data.name || file.name.replace(/\.flow\.json$/, ""),
-        description: data.description ?? null,
+        description: data.description ?? undefined,
         graph: data.graph,
       });
       navigate(`/admin/flows/${f.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -96,8 +120,10 @@ export default function FlowList() {
     if (!confirm("Удалить флоу?")) return;
     setBusy(true);
     try {
-      await api.admin.del(`/api/admin/flows/${id}`);
+      await deleteFlow(id);
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
