@@ -12,7 +12,8 @@ export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  // Surface this loud in dev — the deploy will inject these via GitHub Pages vars.
+  // Surface this loud in dev — the GH Pages workflow injects these from repo
+  // Variables (`VITE_SUPABASE_URL`) and Secrets (`VITE_SUPABASE_ANON_KEY`).
   // eslint-disable-next-line no-console
   console.warn(
     "VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY are not set. " +
