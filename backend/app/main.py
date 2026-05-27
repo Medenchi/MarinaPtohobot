@@ -1,18 +1,25 @@
-"""Entry point — runs the aiogram bot AND the admin FastAPI concurrently."""
+"""Entry point — runs the aiogram bot and a background preview poller.
+
+The frontend (admin constructor + mama content panels) talks to Supabase
+directly via supabase-js and an Edge Function for login, so we no longer
+host an HTTP server here. This process now does just two things:
+
+1. Polls Telegram and runs the published flow (``app.bot.runtime`` engine).
+2. Polls ``bot_preview_requests`` so when Denis hits "Preview" in the
+   constructor, the draft graph is rendered for him in Telegram.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import sys
 
-import uvicorn
 from aiogram import Dispatcher
 
-from app.api.main import app as fastapi_app
 from app.bot.main import shared_bot
 from app.bot.runtime.engine import make_router
+from app.bot.runtime.preview import poll_preview_requests
 from app.core.config import settings
 
 logging.basicConfig(
@@ -34,13 +41,10 @@ async def _run_bot() -> None:
         await bot.session.close()
 
 
-async def _run_api() -> None:
-    host = os.getenv("API_HOST", "0.0.0.0")
-    port = int(os.getenv("API_PORT", "8000"))
-    config = uvicorn.Config(fastapi_app, host=host, port=port, log_level="info")
-    server = uvicorn.Server(config)
-    log.info("API listening on %s:%s", host, port)
-    await server.serve()
+async def _run_preview_poller() -> None:
+    bot = shared_bot()
+    log.info("Preview poller started (bot_preview_requests)")
+    await poll_preview_requests(bot)
 
 
 async def main() -> None:
@@ -50,12 +54,8 @@ async def main() -> None:
     if not settings.supabase_url or not settings.supabase_service_role_key:
         log.error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set. Exiting.")
         sys.exit(1)
-    if not settings.admin_password or not settings.mama_password:
-        log.warning(
-            "ADMIN_PASSWORD or MAMA_PASSWORD is empty - that role will reject all logins.",
-        )
 
-    await asyncio.gather(_run_bot(), _run_api())
+    await asyncio.gather(_run_bot(), _run_preview_poller())
 
 
 if __name__ == "__main__":

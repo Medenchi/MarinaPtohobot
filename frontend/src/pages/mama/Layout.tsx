@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { CalendarBlank, ChartBar, Images, Package } from "@phosphor-icons/react";
-import { clearToken } from "@/lib/api";
+import { clearToken } from "@/lib/supabase";
 import { classNames } from "@/lib/util";
 import Footer from "@/components/Footer";
 

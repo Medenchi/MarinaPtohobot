@@ -8,7 +8,13 @@ import {
   Plus,
   Trash,
 } from "@phosphor-icons/react";
-import { api } from "@/lib/api";
+import {
+  getFlow,
+  previewFlow,
+  publishFlow,
+  unpublishFlow,
+  updateFlow,
+} from "@/lib/api";
 import {
   BLOCK_GROUPS,
   BLOCK_SCHEMAS,
@@ -20,6 +26,8 @@ import { TextField, TextArea, Switch } from "@/components/Field";
 import Footer from "@/components/Footer";
 import type { BlockNode, Flow, FlowGraph } from "@/types";
 
+const PREVIEW_KEY = "marina:preview-tg-id";
+
 export default function Constructor() {
   const { id = "" } = useParams<{ id: string }>();
   const [flow, setFlow] = useState<Flow | null>(null);
@@ -29,10 +37,8 @@ export default function Constructor() {
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // ---------- load / save ----------
   useEffect(() => {
-    api.admin
-      .get<Flow>(`/api/admin/flows/${id}`)
+    getFlow(id)
       .then((f) => {
         if (!f.graph || !Array.isArray(f.graph.nodes)) {
           f.graph = { nodes: [], edges: [] };
@@ -56,7 +62,7 @@ export default function Constructor() {
     setSaving(true);
     setError(null);
     try {
-      const r = await api.admin.patch<Flow>(`/api/admin/flows/${flow.id}`, {
+      const r = await updateFlow(flow.id, {
         name: flow.name,
         description: flow.description,
         graph: flow.graph,
@@ -71,52 +77,51 @@ export default function Constructor() {
     }
   }
 
-  // ---------- graph mutations ----------
   function mutate(updater: (graph: FlowGraph) => FlowGraph) {
     setFlow((prev) => (prev ? { ...prev, graph: updater(prev.graph) } : prev));
     setDirty(true);
   }
 
   function addNode(type: string) {
-    const id = shortId(type.replace(/_/g, ""));
-    const node: BlockNode = { id, type, params: {}, next: null };
+    const newId = shortId(type.replace(/_/g, ""));
+    const node: BlockNode = { id: newId, type, params: {}, next: null };
     mutate((g) => ({ ...g, nodes: [...g.nodes, node] }));
-    setSelectedId(id);
+    setSelectedId(newId);
   }
 
-  function updateNode(id: string, patch: Partial<BlockNode>) {
+  function updateNode(nodeId: string, patch: Partial<BlockNode>) {
     mutate((g) => ({
       ...g,
-      nodes: g.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+      nodes: g.nodes.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)),
     }));
   }
 
-  function updateNodeParam(id: string, key: string, value: unknown) {
+  function updateNodeParam(nodeId: string, key: string, value: unknown) {
     mutate((g) => ({
       ...g,
       nodes: g.nodes.map((n) =>
-        n.id === id ? { ...n, params: { ...n.params, [key]: value } } : n,
+        n.id === nodeId ? { ...n, params: { ...n.params, [key]: value } } : n,
       ),
     }));
   }
 
-  function removeNode(id: string) {
+  function removeNode(nodeId: string) {
     mutate((g) => ({
       ...g,
       nodes: g.nodes
-        .filter((n) => n.id !== id)
+        .filter((n) => n.id !== nodeId)
         .map((n) => ({
           ...n,
-          next: n.next === id ? null : n.next,
-          params: scrubRefs(n.params, id),
+          next: n.next === nodeId ? null : n.next,
+          params: scrubRefs(n.params, nodeId),
         })),
     }));
-    if (selectedId === id) setSelectedId(null);
+    if (selectedId === nodeId) setSelectedId(null);
   }
 
-  function moveNode(id: string, dir: -1 | 1) {
+  function moveNode(nodeId: string, dir: -1 | 1) {
     mutate((g) => {
-      const idx = g.nodes.findIndex((n) => n.id === id);
+      const idx = g.nodes.findIndex((n) => n.id === nodeId);
       if (idx < 0) return g;
       const target = idx + dir;
       if (target < 0 || target >= g.nodes.length) return g;
@@ -126,13 +131,12 @@ export default function Constructor() {
     });
   }
 
-  // ---------- publish + preview ----------
   async function publish() {
     if (!flow) return;
     if (dirty) await persist();
     setSaving(true);
     try {
-      const r = await api.admin.post<Flow>(`/api/admin/flows/${flow.id}/publish`);
+      const r = await publishFlow(flow.id);
       setFlow((prev) => (prev ? { ...prev, is_published: true, version: r.version } : prev));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -145,8 +149,10 @@ export default function Constructor() {
     if (!flow) return;
     setSaving(true);
     try {
-      await api.admin.post(`/api/admin/flows/${flow.id}/unpublish`);
+      await unpublishFlow(flow.id);
       setFlow((prev) => (prev ? { ...prev, is_published: false } : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -155,15 +161,29 @@ export default function Constructor() {
   async function preview() {
     if (!flow) return;
     if (dirty) await persist();
+    let stored = localStorage.getItem(PREVIEW_KEY) || "";
+    if (!stored) {
+      const input = prompt(
+        "Чтобы видеть превью в Telegram — введи свой числовой Telegram id (узнать у @userinfobot). " +
+          "Он сохранится в браузере.",
+      );
+      if (!input) return;
+      const n = Number(input.trim());
+      if (!Number.isInteger(n) || n <= 0) {
+        alert("Это не похоже на корректный telegram id.");
+        return;
+      }
+      stored = String(n);
+      localStorage.setItem(PREVIEW_KEY, stored);
+    }
     try {
-      await api.admin.post(`/api/admin/flows/${flow.id}/preview`);
-      alert("Превью отправлено в Telegram владельцу бота.");
+      await previewFlow(flow.id, Number(stored));
+      alert("Превью поставлено в очередь. Бот сейчас пришлёт его в Telegram.");
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err));
     }
   }
 
-  // ---------- render ----------
   if (error && !flow) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-red-600">
@@ -215,7 +235,6 @@ export default function Constructor() {
       </header>
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 grid grid-cols-1 md:grid-cols-[200px_1fr_320px] gap-4">
-        {/* Sidebar — block palette */}
         <aside className="space-y-3">
           {BLOCK_GROUPS.map((group) => (
             <div key={group.id}>
@@ -238,7 +257,6 @@ export default function Constructor() {
           ))}
         </aside>
 
-        {/* Center — flow list */}
         <section>
           <TextArea
             label="Описание флоу"
@@ -320,7 +338,6 @@ export default function Constructor() {
           )}
         </section>
 
-        {/* Right — inspector */}
         <aside>
           {selected ? (
             <Inspector
@@ -339,8 +356,6 @@ export default function Constructor() {
     </div>
   );
 }
-
-// -------- helpers --------
 
 function scrubRefs(params: Record<string, unknown>, removedId: string): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -362,8 +377,6 @@ function summaryFor(node: BlockNode, fields?: BlockField[]): string {
   if (typeof v === "string") return v.slice(0, 80);
   return "";
 }
-
-// ---------- Inspector ----------
 
 function Inspector({
   node,
@@ -528,8 +541,6 @@ function NodeRef({
     </label>
   );
 }
-
-// ---------- Sub-editors ----------
 
 type Option = { text?: string; value?: string };
 function OptionsListEditor({

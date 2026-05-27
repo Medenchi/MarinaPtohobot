@@ -1,97 +1,355 @@
-// Tiny fetch wrapper. Stores JWT per role in localStorage and decorates every
-// request automatically. The backend serves both /admin/* and /mama/* under
-// the same /api/admin prefix; only the dependency injection on each route
-// decides which role(s) it accepts.
+// Thin wrapper around supabase-js for each page's data needs. Every
+// admin/mama operation goes directly to Supabase (PostgREST or Storage)
+// authenticated with the role's JWT minted by the admin-login Edge
+// Function. There is no custom backend HTTP server anymore.
 
-import type { Role } from "@/types";
+import { anonSupabase, getSupabase, SUPABASE_URL } from "@/lib/supabase";
+import type { Role, Flow, Outfit, OutfitImage, Course, Booking } from "@/types";
 
-const STORAGE_PREFIX = "marina:token:";
+// ---------- Auth ----------
 
-// Read API URL from either VITE_API_URL (used in CI / GH Pages vars) or
-// VITE_API_BASE_URL (legacy fallback). Trailing slash trimmed.
-export const API_BASE = (
-  (import.meta.env.VITE_API_URL as string | undefined) ||
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
-  "http://localhost:8000"
-).replace(/\/$/, "");
-
-export function tokenFor(role: Role): string | null {
-  return localStorage.getItem(STORAGE_PREFIX + role);
-}
-
-export function setToken(role: Role, token: string) {
-  localStorage.setItem(STORAGE_PREFIX + role, token);
-}
-
-export function clearToken(role: Role) {
-  localStorage.removeItem(STORAGE_PREFIX + role);
-}
-
-export class ApiError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-  }
-}
-
-async function call<T>(
+export async function login(
   role: Role,
-  method: string,
-  path: string,
-  body?: unknown,
-  isForm = false,
-): Promise<T> {
-  const headers: Record<string, string> = {};
-  const t = tokenFor(role);
-  if (t) headers.Authorization = `Bearer ${t}`;
-  let payload: BodyInit | undefined;
-  if (body !== undefined) {
-    if (isForm) {
-      payload = body as FormData;
-    } else {
-      headers["Content-Type"] = "application/json";
-      payload = JSON.stringify(body);
-    }
+  password: string,
+): Promise<{ token: string; role: Role; expires_at: number }> {
+  const url = `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/admin-login`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ role, password }),
+  });
+  const data = (await resp.json().catch(() => ({}))) as {
+    token?: string;
+    role?: Role;
+    expires_at?: number;
+    error?: string;
+  };
+  if (!resp.ok || !data.token || !data.role) {
+    throw new Error(data.error || `Login failed (HTTP ${resp.status})`);
   }
-  const resp = await fetch(`${API_BASE}${path}`, { method, headers, body: payload });
-  const text = await resp.text();
-  let data: unknown = null;
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = text;
-    }
-  }
-  if (!resp.ok) {
-    const msg =
-      typeof data === "object" && data !== null && "detail" in data
-        ? String((data as { detail: unknown }).detail)
-        : text || `HTTP ${resp.status}`;
-    throw new ApiError(resp.status, msg);
-  }
-  return data as T;
+  return { token: data.token, role: data.role, expires_at: data.expires_at ?? 0 };
 }
 
-export const api = {
-  async login(role: Role, password: string) {
-    return call<{ token: string; role: Role }>("admin", "POST", "/api/admin/login", {
-      role,
-      password,
+// ---------- Flows (admin) ----------
+
+export async function listFlows(): Promise<Flow[]> {
+  const { data, error } = await getSupabase("admin")
+    .from("bot_flows")
+    .select("*")
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return (data as Flow[]) ?? [];
+}
+
+export async function getFlow(id: string): Promise<Flow> {
+  const { data, error } = await getSupabase("admin")
+    .from("bot_flows")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return data as Flow;
+}
+
+export async function createFlow(input: {
+  name: string;
+  description?: string;
+  graph?: unknown;
+}): Promise<Flow> {
+  const { data, error } = await getSupabase("admin")
+    .from("bot_flows")
+    .insert({
+      name: input.name,
+      description: input.description ?? null,
+      graph: input.graph ?? { nodes: [], edges: [] },
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Flow;
+}
+
+export async function updateFlow(
+  id: string,
+  patch: Partial<Pick<Flow, "name" | "description" | "graph">>,
+): Promise<Flow> {
+  const { data, error } = await getSupabase("admin")
+    .from("bot_flows")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Flow;
+}
+
+export async function deleteFlow(id: string): Promise<void> {
+  const { error } = await getSupabase("admin")
+    .from("bot_flows")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function publishFlow(id: string): Promise<Flow> {
+  const current = await getFlow(id);
+  const { data, error } = await getSupabase("admin")
+    .from("bot_flows")
+    .update({
+      is_published: true,
+      published_at: new Date().toISOString(),
+      version: (current.version ?? 1) + 1,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Flow;
+}
+
+export async function unpublishFlow(id: string): Promise<Flow> {
+  const { data, error } = await getSupabase("admin")
+    .from("bot_flows")
+    .update({ is_published: false, published_at: null })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Flow;
+}
+
+export async function duplicateFlow(id: string): Promise<Flow> {
+  const src = await getFlow(id);
+  return createFlow({
+    name: `${src.name} (копия)`,
+    description: src.description ?? undefined,
+    graph: src.graph,
+  });
+}
+
+export async function previewFlow(
+  flowId: string,
+  targetTelegramId: number,
+): Promise<void> {
+  const flow = await getFlow(flowId);
+  const { error } = await getSupabase("admin")
+    .from("bot_preview_requests")
+    .insert({
+      flow_id: flowId,
+      graph: flow.graph,
+      target_telegram_id: targetTelegramId,
     });
-  },
-  // Bound calls for the constructor (admin role)
-  admin: {
-    get: <T>(p: string) => call<T>("admin", "GET", p),
-    post: <T>(p: string, body?: unknown) => call<T>("admin", "POST", p, body),
-    patch: <T>(p: string, body?: unknown) => call<T>("admin", "PATCH", p, body),
-    del: <T>(p: string) => call<T>("admin", "DELETE", p),
-  },
-  // Bound calls for the content panel (mama role)
-  mama: {
-    get: <T>(p: string) => call<T>("mama", "GET", p),
-    post: <T>(p: string, body?: unknown, isForm = false) =>
-      call<T>("mama", "POST", p, body, isForm),
-    patch: <T>(p: string, body?: unknown) => call<T>("mama", "PATCH", p, body),
-    del: <T>(p: string) => call<T>("mama", "DELETE", p),
-  },
+  if (error) throw error;
+}
+
+// ---------- Outfits (mama) ----------
+
+export async function listOutfits(): Promise<(Outfit & { outfit_images: OutfitImage[] })[]> {
+  const { data, error } = await getSupabase("mama")
+    .from("outfits")
+    .select("*, outfit_images(*)")
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) throw error;
+  return (data as (Outfit & { outfit_images: OutfitImage[] })[]) ?? [];
+}
+
+export async function upsertOutfit(o: Partial<Outfit>): Promise<Outfit> {
+  const client = getSupabase("mama");
+  const { id, outfit_images: _unused, ...rest } = o;
+  void _unused;
+  if (id) {
+    const { data, error } = await client
+      .from("outfits")
+      .update(rest)
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) throw error;
+    return data as Outfit;
+  }
+  const { data, error } = await client
+    .from("outfits")
+    .insert(rest)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Outfit;
+}
+
+export async function deleteOutfit(id: number): Promise<void> {
+  const { error } = await getSupabase("mama").from("outfits").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function uploadOutfitImage(
+  outfitId: number,
+  file: File,
+): Promise<OutfitImage> {
+  const client = getSupabase("mama");
+  const path = `${outfitId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+  const { error: upErr } = await client.storage
+    .from("outfit-images")
+    .upload(path, file, { upsert: false, contentType: file.type });
+  if (upErr) throw upErr;
+  const { data, error } = await client
+    .from("outfit_images")
+    .insert({ outfit_id: outfitId, storage_path: path })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as OutfitImage;
+}
+
+export async function deleteOutfitImage(image: OutfitImage): Promise<void> {
+  const client = getSupabase("mama");
+  await client.storage.from("outfit-images").remove([image.storage_path]);
+  const { error } = await client.from("outfit_images").delete().eq("id", image.id);
+  if (error) throw error;
+}
+
+export function outfitImageUrl(storagePath: string): string {
+  const { data } = anonSupabase.storage.from("outfit-images").getPublicUrl(storagePath);
+  return data.publicUrl;
+}
+
+// ---------- Courses (mama) ----------
+
+export async function listCourses(): Promise<Course[]> {
+  const { data, error } = await getSupabase("mama")
+    .from("courses")
+    .select("*, course_files(*)")
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) throw error;
+  return (data as Course[]) ?? [];
+}
+
+export async function upsertCourse(c: Partial<Course>): Promise<Course> {
+  const client = getSupabase("mama");
+  const { id, ...rest } = c;
+  if (id) {
+    const { data, error } = await client
+      .from("courses")
+      .update(rest)
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) throw error;
+    return data as Course;
+  }
+  const { data, error } = await client
+    .from("courses")
+    .insert(rest)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Course;
+}
+
+export async function deleteCourse(id: number): Promise<void> {
+  const { error } = await getSupabase("mama").from("courses").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function uploadCourseFile(
+  courseId: number,
+  file: File,
+  title?: string,
+): Promise<void> {
+  const client = getSupabase("mama");
+  const path = `${courseId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+  const { error: upErr } = await client.storage
+    .from("course-files")
+    .upload(path, file, { upsert: false, contentType: file.type });
+  if (upErr) throw upErr;
+  const { error } = await client.from("course_files").insert({
+    course_id: courseId,
+    title: title ?? file.name,
+    storage_path: path,
+    mime_type: file.type || "application/octet-stream",
+    size_bytes: file.size,
+  });
+  if (error) throw error;
+}
+
+export function courseFileUrl(storagePath: string): string {
+  const { data } = anonSupabase.storage.from("course-files").getPublicUrl(storagePath);
+  return data.publicUrl;
+}
+
+// ---------- Bookings (mama) ----------
+
+export async function listBookings(unreadOnly = false): Promise<Booking[]> {
+  let q = getSupabase("mama")
+    .from("bookings")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (unreadOnly) q = q.eq("is_read", false);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as Booking[]) ?? [];
+}
+
+export async function markBookingRead(id: number, isRead: boolean): Promise<void> {
+  const { error } = await getSupabase("mama")
+    .from("bookings")
+    .update({ is_read: isRead })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteBooking(id: number): Promise<void> {
+  const { error } = await getSupabase("mama").from("bookings").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---------- Stats ----------
+
+export type StatsCounts = {
+  users_total: number;
+  bookings_total: number;
+  bookings_unread: number;
+  events_total: number;
+  pdfs_generated: number;
 };
+
+export async function statsOverview(role: Role): Promise<StatsCounts> {
+  const client = getSupabase(role);
+  const [users, bookings, unread, events, pdfs] = await Promise.all([
+    client.from("bot_users").select("telegram_id", { count: "exact", head: true }),
+    client.from("bookings").select("id", { count: "exact", head: true }),
+    client
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("is_read", false),
+    client.from("bot_events").select("id", { count: "exact", head: true }),
+    client
+      .from("bot_events")
+      .select("id", { count: "exact", head: true })
+      .eq("event_type", "pdf_generated"),
+  ]);
+  return {
+    users_total: users.count ?? 0,
+    bookings_total: bookings.count ?? 0,
+    bookings_unread: unread.count ?? 0,
+    events_total: events.count ?? 0,
+    pdfs_generated: pdfs.count ?? 0,
+  };
+}
+
+export async function statsEvents(role: Role): Promise<Record<string, number>> {
+  const { data, error } = await getSupabase(role)
+    .from("bot_events")
+    .select("event_type")
+    .limit(5000);
+  if (error) throw error;
+  const counts: Record<string, number> = {};
+  for (const row of (data as { event_type: string }[]) ?? []) {
+    counts[row.event_type] = (counts[row.event_type] ?? 0) + 1;
+  }
+  return counts;
+}

@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Check, Trash } from "@phosphor-icons/react";
-import { api } from "@/lib/api";
+import {
+  deleteBooking,
+  listBookings,
+  markBookingRead,
+} from "@/lib/api";
 import { classNames } from "@/lib/util";
 import MamaLayout from "./Layout";
 import type { Booking } from "@/types";
@@ -9,14 +13,16 @@ export default function Bookings() {
   const [rows, setRows] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
+    setError(null);
     try {
-      const data = await api.mama.get<Booking[]>(
-        `/api/admin/bookings?only_unread=${filter === "unread"}`,
-      );
+      const data = await listBookings(filter === "unread");
       setRows(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -26,13 +32,21 @@ export default function Bookings() {
   }, [filter]);
 
   async function markRead(id: number) {
-    await api.mama.post(`/api/admin/bookings/${id}/read`);
-    await load();
+    try {
+      await markBookingRead(id, true);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
   async function remove(id: number) {
     if (!confirm("Удалить заявку?")) return;
-    await api.mama.del(`/api/admin/bookings/${id}`);
-    await load();
+    try {
+      await deleteBooking(id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   return (
@@ -60,6 +74,7 @@ export default function Bookings() {
           </button>
         </div>
       </div>
+      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
       {loading ? (
         <p className="text-sm text-muted">Загрузка…</p>
       ) : rows.length === 0 ? (
