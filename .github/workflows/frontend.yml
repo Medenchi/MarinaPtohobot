@@ -43,15 +43,18 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: npm run build
 
+      # Явно пишем пути относительно working-directory (frontend/)
       - name: Add CNAME
         run: echo "${{ vars.CUSTOM_DOMAIN || 'marinazau.denchy.cyou' }}" > dist/CNAME
 
       - name: Add SPA fallback
         run: cp dist/index.html dist/404.html
 
-      - uses: actions/upload-pages-artifact@v3
+      # Указываем полный путь от корня репозитория до папки dist
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend/dist
+          path: ./frontend/dist
 
   deploy:
     needs: build
