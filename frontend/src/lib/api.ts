@@ -8,29 +8,32 @@ import type { Role, Flow, Outfit, OutfitImage, Course, Booking } from "@/types";
 
 // ---------- Auth ----------
 
+// Пароли хранятся прямо здесь. Замени "PASSWORD_HERE" на нужные значения.
+const ADMIN_PASSWORDS: Record<Role, string> = {
+  admin: "PASSWORD_HERE",
+  mama: "PASSWORD_HERE",
+};
+
 export async function login(
   role: Role,
   password: string,
 ): Promise<{ token: string; role: Role; expires_at: number }> {
-  const url = `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/admin-login`;
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ role, password }),
-  });
-  const data = (await resp.json().catch(() => ({}))) as {
-    token?: string;
-    role?: Role;
-    expires_at?: number;
-    error?: string;
-  };
-  if (!resp.ok || !data.token || !data.role) {
-    throw new Error(data.error || `Login failed (HTTP ${resp.status})`);
+  const expectedPassword = ADMIN_PASSWORDS[role];
+
+  if (!expectedPassword || password !== expectedPassword) {
+    throw new Error("Неверный пароль");
   }
-  return { token: data.token, role: data.role, expires_at: data.expires_at ?? 0 };
+
+  // Возвращаем мок-токен: остальной код приложения будет считать авторизацию успешной.
+  // Реальные запросы к Supabase идут через service_role ключ из VITE_SUPABASE_ANON_KEY,
+  // который уже прописан в getSupabase() — токен ниже используется только как маркер сессии.
+  const expires_at = Math.floor(Date.now() / 1000) + 60 * 60 * 24; // 24 часа
+
+  return {
+    token: `mock-token-${role}-${Date.now()}`,
+    role,
+    expires_at,
+  };
 }
 
 // ---------- Flows (admin) ----------
