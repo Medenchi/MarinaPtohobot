@@ -3,7 +3,7 @@
 // authenticated with the role's JWT minted by the admin-login Edge
 // Function. There is no custom backend HTTP server anymore.
 
-import { anonSupabase, getSupabase, SUPABASE_URL } from "@/lib/supabase";
+import { anonSupabase, getSupabase } from "@/lib/supabase";
 import type { Role, Flow, Outfit, OutfitImage, Course, Booking } from "@/types";
 
 // ---------- Auth ----------
