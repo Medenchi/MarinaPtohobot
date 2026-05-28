@@ -4,7 +4,7 @@ export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn("Переменные Supabase не заданы в Vercel!");
+  console.warn("Переменые Supabase не заданы в Vercel!");
 }
 
 export function tokenFor(): string | null {
