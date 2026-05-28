@@ -2,7 +2,8 @@ name: Deploy frontend to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches:
+      - "devin/1778954098-initial-setup"
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
@@ -43,14 +44,14 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: npm run build
 
-      # Явно пишем пути относительно working-directory (frontend/)
+      # Файлы создаются внутри frontend/dist благодаря working-directory
       - name: Add CNAME
         run: echo "${{ vars.CUSTOM_DOMAIN || 'marinazau.denchy.cyou' }}" > dist/CNAME
 
       - name: Add SPA fallback
         run: cp dist/index.html dist/404.html
 
-      # Указываем полный путь от корня репозитория до папки dist
+      # Загружаем артефакт, указывая точный путь от корня репозитория
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
