@@ -1,15 +1,19 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-export function tokenFor(...args: any[]): string | null {
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn("Переменные Supabase не заданы в Vercel!");
+}
+
+export function tokenFor(..._args: any[]): string | null {
   return "mock-token";
 }
 
-export function setToken(...args: any[]) {}
+export function setToken(..._args: any[]) {}
 
-export function clearToken(...args: any[]) {}
+export function clearToken(..._args: any[]) {}
 
 export const anonSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -19,7 +23,6 @@ export const anonSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
-// Функция принимает ЛЮБЫЕ аргументы и просто отдает админский клиент базы данных
-export function getSupabase(...args: any[]): any {
+export function getSupabase(..._args: any[]): SupabaseClient {
   return anonSupabase;
 }
