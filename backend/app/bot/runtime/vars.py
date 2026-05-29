@@ -46,5 +46,28 @@ def render(template: Any, ctx: dict[str, Any]) -> Any:
     return template
 
 
+def _current_season() -> str:
+    from datetime import datetime
+
+    m = datetime.now().month
+    if m in (12, 1, 2):
+        return "зима"
+    if m in (3, 4, 5):
+        return "весна"
+    if m in (6, 7, 8):
+        return "лето"
+    return "осень"
+
+
 def build_context(*, vars_: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
-    return {"vars": vars_, "user": user}
+    from datetime import datetime
+
+    now = datetime.now()
+    system = {
+        "season": _current_season(),
+        "month": now.month,
+        "year": now.year,
+        "date": now.strftime("%d.%m.%Y"),
+        "weekday": now.weekday(),  # 0=Mon
+    }
+    return {"vars": vars_, "user": user, "system": system}

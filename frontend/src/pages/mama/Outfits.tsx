@@ -64,7 +64,7 @@ export default function Outfits() {
         title: "Новый образ",
         description: "",
         colors: "", styles: "", seasons: "", occasions: "",
-        body_types: "", budgets: "", shoot_types: "",
+        body_types: "", budgets: "", shoot_types: "", gender: "",
         price_hint: "", external_url: "", pinterest_url: "",
         sort_order: 0, is_published: false,
       });
@@ -229,6 +229,7 @@ function OutfitForm({
         onChange={(e) => patch("description", e.target.value)}
       />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <TagPicker label="Пол"        kind="gender"      value={form.gender || ""} options={categories} onChange={(v) => patch("gender", v)} />
         <TagPicker label="Цвета"      kind="colors"      value={form.colors}      options={categories} onChange={(v) => patch("colors", v)} />
         <TagPicker label="Стили"      kind="styles"      value={form.styles}      options={categories} onChange={(v) => patch("styles", v)} />
         <TagPicker label="Сезоны"     kind="seasons"     value={form.seasons}     options={categories} onChange={(v) => patch("seasons", v)} />

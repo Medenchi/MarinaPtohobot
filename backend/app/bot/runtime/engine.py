@@ -234,6 +234,33 @@ async def _handle_callback(cq: CallbackQuery) -> None:
         await cq.answer()
         return
 
+    # Special-case: голосование за образ (callback like:<id> / skip:<id>).
+    # Не уходим в новый узел — просто пишем в vars.liked_ids / disliked_ids,
+    # отвечаем "сохранил" и выходим. Кнопка «Готово» отправит callback
+    # n:<next_node>|done — тот обрабатывается стандартно.
+    if isinstance(value, str) and (value.startswith("like:") or value.startswith("skip:")):
+        kind, _, oid = value.partition(":")
+        node = ctx.nodes.get(target_node_id) if target_node_id else None
+        params = (node.get("params") if node else {}) or {}
+        liked_var = params.get("liked_var") or "liked_ids"
+        disliked_var = params.get("disliked_var") or "disliked_ids"
+        try:
+            oid_int = int(oid)
+        except (TypeError, ValueError):
+            oid_int = oid
+        if kind == "like":
+            arr = ctx.vars.setdefault(liked_var, [])
+            if oid_int not in arr:
+                arr.append(oid_int)
+            await cq.answer("👍 запомнила!")
+        else:
+            arr = ctx.vars.setdefault(disliked_var, [])
+            if oid_int not in arr:
+                arr.append(oid_int)
+            await cq.answer("ок, пропускаю")
+        state.save(ctx.session)
+        return
+
     # If the user clicked an ask_question option, record it.
     if ctx.session.awaiting_input and ctx.session.current_node_id:
         current = ctx.nodes.get(ctx.session.current_node_id)

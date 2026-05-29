@@ -1,0 +1,264 @@
+{
+  "name": "Подбор образов — Марина Заугольникова",
+  "description": "Холодный трафик на /start. Спрашивает пол → повод → стиль → сезон (по умолчанию — текущий). Мягкая выборка из outfits (ранжирование по числу совпадений). Карусель с лайками. PDF с разделами 'Понравилось' / 'Может подойти'. В конце — CTA 'Заказать съёмку'. Вариант 'я по работе' уводит на @mzaugolnikova.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "trg_start",
+        "type": "command",
+        "params": { "command": "start" },
+        "next": "hello",
+        "position": { "x": 80, "y": 120 }
+      },
+      {
+        "id": "trg_look",
+        "type": "command",
+        "params": { "command": "look" },
+        "next": "ask_gender",
+        "position": { "x": 80, "y": 260 }
+      },
+
+      {
+        "id": "hello",
+        "type": "send_message",
+        "params": {
+          "text": "Привет, {{user.first_name}}! 📸\n\nЯ — бот <b>Марины Заугольниковой</b>, фотографа из Москвы.\n\nПомогу подобрать образы под твою съёмку: спрошу пару вопросов и покажу подходящие варианты с возможностью отметить 👍 / 💔. В конце соберу красивый PDF.\n\nГотов(а)?",
+          "buttons": [
+            [
+              { "text": "✨ Поехали", "next": "ask_gender" }
+            ],
+            [
+              { "text": "💼 Я по работе (контакт)", "next": "work_contact" }
+            ]
+          ]
+        },
+        "next": null,
+        "position": { "x": 360, "y": 120 }
+      },
+
+      {
+        "id": "work_contact",
+        "type": "send_message",
+        "params": {
+          "text": "Понимаю — по работе быстрее напрямую.\n\nНапиши Марине: @mzaugolnikova\n\nИли посмотри сайт: <a href=\"https://zaugolnikova.ru/\">zaugolnikova.ru</a>",
+          "buttons": [
+            [
+              { "text": "💬 Написать Марине", "url": "https://t.me/mzaugolnikova" },
+              { "text": "🌐 Сайт",            "url": "https://zaugolnikova.ru/" }
+            ],
+            [
+              { "text": "← Назад к подбору", "next": "ask_gender" }
+            ]
+          ]
+        },
+        "next": "end_flow",
+        "position": { "x": 360, "y": 360 }
+      },
+
+      {
+        "id": "ask_gender",
+        "type": "ask_question",
+        "params": {
+          "text": "Кому подбираем образы?",
+          "variable": "gender",
+          "inline": true,
+          "options": [
+            { "text": "👩 Женские",  "value": "женское" },
+            { "text": "👨 Мужские",  "value": "мужское" }
+          ]
+        },
+        "next": "ask_occasion",
+        "position": { "x": 640, "y": 120 }
+      },
+
+      {
+        "id": "ask_occasion",
+        "type": "ask_question",
+        "params": {
+          "text": "По какому поводу?",
+          "variable": "occasion",
+          "inline": true,
+          "options": [
+            { "text": "💕 Love-story",      "value": "love-story" },
+            { "text": "👨‍👩‍👧 Семейная",     "value": "семейная съёмка" },
+            { "text": "🤰 Беременность",    "value": "беременность" },
+            { "text": "👩 Индивидуальная",  "value": "индивидуальная" },
+            { "text": "🤝 Lookbook",        "value": "lookbook" },
+            { "text": "📱 Контент",         "value": "контент для соцсетей" }
+          ]
+        },
+        "next": "ask_style",
+        "position": { "x": 920, "y": 120 }
+      },
+
+      {
+        "id": "ask_style",
+        "type": "ask_question",
+        "params": {
+          "text": "Какой стиль ближе?",
+          "variable": "style",
+          "inline": true,
+          "options": [
+            { "text": "🤍 Минимализм",   "value": "минимализм" },
+            { "text": "👔 Классика",     "value": "классика" },
+            { "text": "🍂 Old money",    "value": "old money" },
+            { "text": "👕 Casual",       "value": "casual" },
+            { "text": "🌸 Романтика",    "value": "романтика" },
+            { "text": "🤷 Любой",        "value": "" }
+          ]
+        },
+        "next": "set_season",
+        "position": { "x": 1200, "y": 120 }
+      },
+
+      {
+        "id": "set_season",
+        "type": "set_variable",
+        "params": {
+          "name": "season",
+          "value": "{{system.season}}"
+        },
+        "next": "query_outfits",
+        "position": { "x": 1480, "y": 120 }
+      },
+
+      {
+        "id": "query_outfits",
+        "type": "db_query",
+        "params": {
+          "table": "outfits",
+          "select": "id, title, description, colors, styles, seasons, occasions, gender, external_url, outfit_images(*)",
+          "filters": [
+            { "column": "is_published", "op": "eq",    "value": "true" },
+            { "column": "gender",       "op": "ilike", "value": "%{{vars.gender}}%" },
+            { "column": "occasions",    "op": "ilike", "value": "%{{vars.occasion}}%" }
+          ],
+          "order_by": "sort_order",
+          "limit": 50,
+          "save_to": "matched_outfits"
+        },
+        "next": "branch_has_results",
+        "position": { "x": 1760, "y": 120 }
+      },
+
+      {
+        "id": "branch_has_results",
+        "type": "branch",
+        "params": {
+          "variable": "{{vars.matched_outfits}}",
+          "op": "not_empty",
+          "true_next":  "intro_show",
+          "false_next": "empty_state"
+        },
+        "position": { "x": 2040, "y": 120 }
+      },
+
+      {
+        "id": "empty_state",
+        "type": "send_message",
+        "params": {
+          "text": "Странно, по этим параметрам у меня ничего нет 😕\n\nМожно показать ближайшие варианты — иногда там тоже интересно. Или начать заново с другими ответами.",
+          "buttons": [
+            [
+              { "text": "🔍 Показать ближайшие", "next": "query_nearest" }
+            ],
+            [
+              { "text": "🔄 Начать заново",     "next": "hello" }
+            ]
+          ]
+        },
+        "next": null,
+        "position": { "x": 2040, "y": 360 }
+      },
+
+      {
+        "id": "query_nearest",
+        "type": "db_query",
+        "params": {
+          "table": "outfits",
+          "select": "id, title, description, colors, styles, seasons, occasions, gender, external_url, outfit_images(*)",
+          "filters": [
+            { "column": "is_published", "op": "eq",    "value": "true" },
+            { "column": "gender",       "op": "ilike", "value": "%{{vars.gender}}%" }
+          ],
+          "order_by": "sort_order",
+          "limit": 30,
+          "save_to": "matched_outfits"
+        },
+        "next": "intro_show",
+        "position": { "x": 2320, "y": 360 }
+      },
+
+      {
+        "id": "intro_show",
+        "type": "send_message",
+        "params": {
+          "text": "Вот что подошло ✨\n\nПролистай и отметь 👍 что зашло и 💔 что нет. Когда закончишь — нажми <b>Готово</b> внизу, и я соберу красивый PDF."
+        },
+        "next": "voting",
+        "position": { "x": 2320, "y": 120 }
+      },
+
+      {
+        "id": "voting",
+        "type": "show_outfits_voting",
+        "params": {
+          "items_var": "matched_outfits",
+          "limit": 15,
+          "liked_var": "liked_ids",
+          "disliked_var": "disliked_ids",
+          "done_text": "Когда отметишь — нажми сюда, и я пришлю PDF подборки:",
+          "done_button": "✅ Готово, собрать PDF"
+        },
+        "next": "make_pdf",
+        "position": { "x": 2600, "y": 120 }
+      },
+
+      {
+        "id": "make_pdf",
+        "type": "generate_pdf_voted",
+        "params": {
+          "items_var": "matched_outfits",
+          "liked_var": "liked_ids",
+          "filename": "podbor_marina.pdf",
+          "caption": "Твоя подборка от Марины ✨",
+          "send_now": true,
+          "save_to": "pdf"
+        },
+        "next": "cta_booking",
+        "position": { "x": 2880, "y": 120 }
+      },
+
+      {
+        "id": "cta_booking",
+        "type": "send_message",
+        "params": {
+          "text": "📸 <b>ЗАКАЗАТЬ СЪЁМКУ</b>\n\nПонравились образы? Давай снимем тебя в них.\n\nМарина работает в Москве, есть несколько пакетов:\n\n✨ <b>Экспресс — 15 000 ₽</b>\n1 час, 15 фото, готовы за 14 рабочих дней\n\n🌿 <b>Лайт — 25 000 ₽</b>\nДо результата, 40 фото + исходники\n\n💫 <b>Комфорт — 35 000 ₽</b>\nДо результата, 80 фото, готовы за 7 дней\n\n👑 <b>Под ключ — 115 000 ₽</b>\n3 часа студии, стилист, макияж, 3 образа, 100 фото\n\n🎥 <b>Репортаж — от 8 000 ₽/час</b>\n\n<b>Бронирование</b> по задатку 6 000 ₽. Перенос даты — до 2 раз.",
+          "buttons": [
+            [
+              { "text": "💬 Написать Марине", "url": "https://t.me/mzaugolnikova" }
+            ],
+            [
+              { "text": "🌐 Сайт",            "url": "https://zaugolnikova.ru/" },
+              { "text": "📞 Позвонить",       "url": "tel:+79851963084" }
+            ],
+            [
+              { "text": "🔄 Подобрать ещё",   "next": "hello" }
+            ]
+          ]
+        },
+        "next": "end_flow",
+        "position": { "x": 3160, "y": 120 }
+      },
+
+      {
+        "id": "end_flow",
+        "type": "end",
+        "params": {},
+        "next": null,
+        "position": { "x": 3440, "y": 120 }
+      }
+    ],
+    "edges": []
+  }
+}
