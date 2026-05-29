@@ -27,7 +27,10 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
     Message,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
 )
 
 from app.bot.runtime import registry, validator
@@ -173,6 +176,44 @@ async def _safe_edit(cq: CallbackQuery, text: str, markup: InlineKeyboardMarkup 
             await msg.answer(text, reply_markup=markup, parse_mode="HTML")
 
 
+# ---- Reply-клавиатура владельца ----
+
+ADMIN_KB_BUTTONS = [
+    ["📋 Флоу", "🧠 AI-проверка"],
+    ["🏷 Категории", "👗 Образы"],
+    ["📊 Заявки", "🌐 Открыть веб-админку"],
+    ["❌ Скрыть"],
+]
+
+
+def _admin_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=t) for t in row] for row in ADMIN_KB_BUTTONS],
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Выбери раздел или просто пиши…",
+    )
+
+
+async def _send_admin_keyboard(message: Message) -> None:
+    web = settings.public_web_url.rstrip("/")
+    text = (
+        "🛠 <b>Админка Марины</b>\n\n"
+        f'Веб: <a href="{web}/admin">{web}/admin</a>\n'
+        f'Контент Марины: <a href="{web}/mama">{web}/mama</a>\n\n'
+        "Внизу — быстрые кнопки. Команды:\n"
+        "  /builder — мини-конструктор флоу\n"
+        "  /admin — это меню\n"
+        "  /hide — спрятать клавиатуру"
+    )
+    await message.answer(
+        text,
+        reply_markup=_admin_kb(),
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
+
+
 def make_router() -> Router:
     router = Router(name="mini_constructor")
 
@@ -181,6 +222,116 @@ def make_router() -> Router:
         if not _is_owner(message.from_user.id if message.from_user else None):
             return  # тихо игнорируем не-владельцев
         await _send_main_menu(message)
+
+    @router.message(Command(commands=["admin", "menu"]))
+    async def on_admin(message: Message) -> None:
+        if not _is_owner(message.from_user.id if message.from_user else None):
+            return
+        await _send_admin_keyboard(message)
+
+    @router.message(Command("hide"))
+    async def on_hide(message: Message) -> None:
+        if not _is_owner(message.from_user.id if message.from_user else None):
+            return
+        await message.answer(
+            "Клавиатура спрятана. /admin — вернуть.",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+
+    @router.message(
+        F.text.in_(
+            {
+                "📋 Флоу",
+                "🧠 AI-проверка",
+                "🏷 Категории",
+                "👗 Образы",
+                "📊 Заявки",
+                "🌐 Открыть веб-админку",
+                "❌ Скрыть",
+            }
+        )
+    )
+    async def on_reply_btn(message: Message) -> None:
+        if not _is_owner(message.from_user.id if message.from_user else None):
+            return
+        web = settings.public_web_url.rstrip("/")
+        txt = message.text or ""
+        if txt == "📋 Флоу":
+            await _send_main_menu(message)
+            return
+        if txt == "🧠 AI-проверка":
+            sb = get_supabase()
+            r = (
+                sb.table("bot_flows")
+                .select("id, name, graph")
+                .eq("is_published", True)
+                .order("published_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            flow = (r.data or [None])[0]
+            if not flow:
+                await message.answer("Нет опубликованного флоу.")
+                return
+            issues = validator.validate_graph(flow.get("graph") or {})
+            if not issues:
+                await message.answer(
+                    f"✅ Чисто (<b>{_esc(flow['name'])}</b>)",
+                    parse_mode="HTML",
+                )
+                return
+            lines = [f"<b>{_esc(flow['name'])}</b>", ""]
+            for i in issues[:20]:
+                e = LEVEL_EMOJI.get(i["level"], "·")
+                lines.append(
+                    f"{e} <code>{_esc(i.get('node_id') or '-')}</code> — {_esc(i['message'])}"
+                )
+            await message.answer(chr(10).join(lines), parse_mode="HTML")
+            return
+        if txt == "🏷 Категории":
+            await message.answer(
+                "🏷 <b>Категории</b>\n\n"
+                f'Открой <a href="{web}/admin/categories">{web}/admin/categories</a> '
+                "чтобы редактировать справочники (Пол, Цвета, Стили, Сезоны, "
+                "Поводы, Фигура, Бюджет, Тип съёмки).",
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            return
+        if txt == "👗 Образы":
+            await message.answer(
+                "👗 <b>Образы</b>\n\n"
+                f'Каталог — в <a href="{web}/mama">контент-админке Марины</a>. '
+                "Там можно загружать фото, ставить теги, публиковать.",
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            return
+        if txt == "📊 Заявки":
+            await message.answer(
+                "📊 <b>Заявки и статистика</b>\n\n"
+                f'• <a href="{web}/mama/bookings">{web}/mama/bookings</a>\n'
+                f'• <a href="{web}/mama/stats">{web}/mama/stats</a>',
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            return
+        if txt == "🌐 Открыть веб-админку":
+            await message.answer(
+                "🌐 <b>Веб-админка</b>\n\n"
+                f'• <a href="{web}/admin">{web}/admin</a> — флоу + конструктор\n'
+                f'• <a href="{web}/admin/categories">{web}/admin/categories</a> — категории\n'
+                f'• <a href="{web}/mama">{web}/mama</a> — образы / курсы / заявки',
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            return
+        if txt == "❌ Скрыть":
+            await message.answer(
+                "ОК, спрятала. /admin — вернуть.",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            return
 
     @router.callback_query(F.data.startswith(CB_PREFIX))
     async def on_cb(cq: CallbackQuery) -> None:

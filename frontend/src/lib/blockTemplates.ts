@@ -16,7 +16,7 @@ import type { BlockNode } from "@/types";
 
 export interface BlockTemplate {
   id: string;
-  group: "occasion" | "outfits" | "courses" | "packages" | "contacts";
+  group: "occasion" | "outfits" | "courses" | "packages" | "contacts" | "flow";
   title: string;
   description: string;
   /** Возвращает массив новых узлов с УЖЕ уникальными id (вызывается с генератором). */
@@ -424,9 +424,139 @@ export const BLOCK_TEMPLATES: BlockTemplate[] = [
       },
     ],
   },
+  // ---- FLOW: универсальный опросник ----
+  {
+    id: "mega_selector",
+    group: "flow",
+    title: "🎯 Опросник: пол → повод → стиль → сезон → цвет → бюджет → фигура → тип съёмки",
+    description: "Универсальный шаблон из 8 связанных вопросов по всем категориям с правильными падежами. В конце: db_query → карусель с лайками → PDF с секциями → CTA.",
+    build: (g) => {
+      const qGender   = g("ask_gender");
+      const qOccasion = g("ask_occasion");
+      const qStyle    = g("ask_style");
+      const qSeason   = g("ask_season");
+      const qColor    = g("ask_color");
+      const qBudget   = g("ask_budget");
+      const qBody     = g("ask_body");
+      const qShoot    = g("ask_shoot");
+      const queryId   = g("query_outfits");
+      const checkId   = g("branch_has");
+      const emptyId   = g("empty_state");
+      const introId   = g("intro_show");
+      const votingId  = g("voting");
+      const pdfId     = g("make_pdf");
+      const ctaId     = g("cta_booking");
+      const endId     = g("end_flow");
+      return [
+        { id: qGender, type: "ask_question", params: { text: "Кому подбираем образы?", variable: "gender", inline: true, options: [
+          { text: "👩 Женские", value: "женское" }, { text: "👨 Мужские", value: "мужское" },
+        ]}, next: qOccasion },
+        { id: qOccasion, type: "ask_question", params: { text: "По какому поводу?", variable: "occasion", inline: true, options: [
+          { text: "💕 Love-story", value: "love-story" },
+          { text: "👨‍👩‍👧 Семейная", value: "семейная съёмка" },
+          { text: "🤰 Беременность", value: "беременность" },
+          { text: "👩 Индивидуальная", value: "индивидуальная" },
+          { text: "🤝 Lookbook", value: "lookbook" },
+          { text: "📱 Контент", value: "контент для соцсетей" },
+          { text: "🎥 Репортаж", value: "репортаж" },
+          { text: "🤷 Любой", value: "" },
+        ]}, next: qStyle },
+        { id: qStyle, type: "ask_question", params: { text: "Какой стиль ближе?", variable: "style", inline: true, options: [
+          { text: "🤍 Минимализм", value: "минимализм" },
+          { text: "👔 Классика", value: "классика" },
+          { text: "🍂 Old money", value: "old money" },
+          { text: "👕 Casual", value: "casual" },
+          { text: "🌸 Романтика", value: "романтика" },
+          { text: "🌊 Бохо", value: "бохо" },
+          { text: "🤷 Любой", value: "" },
+        ]}, next: qSeason },
+        { id: qSeason, type: "ask_question", params: { text: "На какой сезон ориентируемся?", variable: "season", inline: true, options: [
+          { text: "🌷 Весна", value: "весна" }, { text: "☀️ Лето", value: "лето" },
+          { text: "🍂 Осень", value: "осень" }, { text: "❄️ Зима", value: "зима" },
+          { text: "🤷 Любой", value: "" },
+        ]}, next: qColor },
+        { id: qColor, type: "ask_question", params: { text: "Какие цвета любишь?", variable: "color", inline: true, options: [
+          { text: "🤎 Бежевый", value: "бежевый" }, { text: "🤍 Белый", value: "белый" },
+          { text: "🖤 Чёрный", value: "чёрный" }, { text: "🩶 Серый", value: "серый" },
+          { text: "🌰 Коричневый", value: "коричневый" }, { text: "🥛 Молочный", value: "молочный" },
+          { text: "🫒 Оливковый", value: "оливковый" }, { text: "🌸 Пастельный", value: "пастельный" },
+          { text: "🍷 Бордовый", value: "бордовый" },
+          { text: "🤷 Любой", value: "" },
+        ]}, next: qBudget },
+        { id: qBudget, type: "ask_question", params: { text: "Какой бюджет на образ?", variable: "budget", inline: true, options: [
+          { text: "💸 До 5к", value: "до 5к" }, { text: "💵 5–15к", value: "5–15к" },
+          { text: "💴 15–30к", value: "15–30к" }, { text: "💶 30–60к", value: "30–60к" },
+          { text: "💎 60к+", value: "60к+" },
+          { text: "🤷 Не важно", value: "" },
+        ]}, next: qBody },
+        { id: qBody, type: "ask_question", params: { text: "Какой у тебя тип фигуры? (если знаешь)", variable: "body", inline: true, options: [
+          { text: "⌛ Песочные часы", value: "песочные часы" },
+          { text: "▭ Прямоугольник", value: "прямоугольник" },
+          { text: "🍐 Груша", value: "груша" },
+          { text: "🍎 Яблоко", value: "яблоко" },
+          { text: "🔻 Перевёрнутый ▽", value: "перевёрнутый треугольник" },
+          { text: "✨ Plus size", value: "plus size" },
+          { text: "🤷 Не знаю", value: "" },
+        ]}, next: qShoot },
+        { id: qShoot, type: "ask_question", params: { text: "Где планируешь снимать?", variable: "shoot", inline: true, options: [
+          { text: "🏠 В студии", value: "студия" },
+          { text: "🌳 На улице", value: "улица" },
+          { text: "🏡 Дома у клиента", value: "дома у клиента" },
+          { text: "🌲 На природе", value: "природа" },
+          { text: "🌇 Золотой час", value: "золотой час" },
+          { text: "❄️ Зимой на улице", value: "зимняя на улице" },
+          { text: "🤷 Любая", value: "" },
+        ]}, next: queryId },
+        { id: queryId, type: "db_query", params: {
+          table: "outfits",
+          select: "id, title, description, colors, styles, seasons, occasions, body_types, budgets, shoot_types, gender, external_url, outfit_images(*)",
+          filters: [
+            { column: "is_published", op: "eq",    value: "true" },
+            { column: "gender",       op: "ilike", value: "%{{vars.gender}}%" },
+            { column: "occasions",    op: "ilike", value: "%{{vars.occasion}}%" },
+            { column: "styles",       op: "ilike", value: "%{{vars.style}}%" },
+            { column: "colors",       op: "ilike", value: "%{{vars.color}}%" },
+          ],
+          order_by: "sort_order", limit: 30, save_to: "matched_outfits",
+        }, next: checkId },
+        { id: checkId, type: "branch", params: {
+          variable: "{{vars.matched_outfits}}", op: "not_empty",
+          true_next: introId, false_next: emptyId,
+        }},
+        { id: emptyId, type: "send_message", params: {
+          text: "Странно, по этим параметрам ничего нет 😕\n\nНажми «Начать заново», чтобы попробовать с другими.",
+          buttons: [[{ text: "🔄 Начать заново", next: qGender }]],
+        }, next: null },
+        { id: introId, type: "send_message", params: {
+          text: "Вот что подошло ✨\n\nОтметь 👍/💔 и нажми «Готово» в конце.",
+        }, next: votingId },
+        { id: votingId, type: "show_outfits_voting", params: {
+          items_var: "matched_outfits", limit: 15,
+          liked_var: "liked_ids", disliked_var: "disliked_ids",
+          done_text: "Когда отметишь — нажми сюда:",
+          done_button: "✅ Готово, собрать PDF",
+        }, next: pdfId },
+        { id: pdfId, type: "generate_pdf_voted", params: {
+          items_var: "matched_outfits", liked_var: "liked_ids",
+          filename: "podbor_marina.pdf",
+          caption: "Твоя подборка ✨", send_now: true, save_to: "pdf",
+        }, next: ctaId },
+        { id: ctaId, type: "send_message", params: {
+          text: "📸 <b>ЗАКАЗАТЬ СЪЁМКУ</b>\n\nНаписать Марине: @mzaugolnikova",
+          buttons: [
+            [{ text: "💬 Написать Марине", url: "https://t.me/mzaugolnikova" }],
+            [{ text: "🌐 Сайт", url: "https://zaugolnikova.ru/" }],
+            [{ text: "🔄 Подобрать ещё", next: qGender }],
+          ],
+        }, next: endId },
+        { id: endId, type: "end", params: {}, next: null },
+      ];
+    },
+  },
 ];
 
 export const TEMPLATE_GROUPS: { id: BlockTemplate["group"]; title: string }[] = [
+  { id: "flow", title: "Готовые сценарии" },
   { id: "occasion", title: "Поводы съёмок" },
   { id: "outfits", title: "Образы" },
   { id: "courses", title: "Курсы" },
