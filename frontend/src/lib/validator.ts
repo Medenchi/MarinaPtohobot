@@ -143,6 +143,13 @@ export function validateGraph(graph: FlowGraph): Issue[] {
       const t = b?.target || b?.next;
       if (t) stack.push(t);
     }
+    if (n.type === "branch") {
+      const p = (n.params as Record<string, unknown>) || {};
+      for (const k of ["true_next", "false_next"] as const) {
+        const t = p[k] as string | undefined;
+        if (t) stack.push(t);
+      }
+    }
   }
   for (const n of nodes) {
     if (!n.id || TRIGGER_TYPES.has(n.type)) continue;
