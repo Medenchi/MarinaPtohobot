@@ -55,6 +55,28 @@ export default function Outfits() {
     }
   }
 
+  /** Создать пустой черновик образа в БД и открыть его на редактирование.
+   *  Так Марина может сразу заливать фото — без двух кликов «Сохранить→Открыть». */
+  async function createDraft() {
+    setError(null);
+    try {
+      const saved = await upsertOutfit({
+        title: "Новый образ",
+        description: "",
+        colors: "", styles: "", seasons: "", occasions: "",
+        body_types: "", budgets: "", shoot_types: "",
+        price_hint: "", external_url: "", pinterest_url: "",
+        sort_order: 0, is_published: false,
+      });
+      await load();
+      // Подсасываем со списка чтобы получить вложенные outfit_images
+      const fresh = (await listOutfits()).find((o) => o.id === saved.id);
+      setEditing(fresh || { ...saved, outfit_images: [] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async function remove(id: number) {
     if (!confirm("Удалить образ?")) return;
     try {
@@ -114,27 +136,7 @@ export default function Outfits() {
       <div className="flex justify-between items-center mb-4">
         <h2 className="serif-heading text-2xl">Образы</h2>
         <button
-          onClick={() =>
-            setEditing({
-              id: 0,
-              title: "",
-              description: "",
-              colors: "",
-              styles: "",
-              seasons: "",
-              occasions: "",
-              body_types: "",
-              budgets: "",
-              shoot_types: "",
-              price_hint: "",
-              external_url: "",
-              pinterest_url: "",
-              tags: null,
-              sort_order: 0,
-              is_published: true,
-              outfit_images: [],
-            })
-          }
+          onClick={() => void createDraft()}
           className="btn-primary"
         >
           <Plus size={14} weight="thin" /> Добавить образ
@@ -215,7 +217,7 @@ function OutfitForm({
   }
   return (
     <div className="card space-y-3 max-w-2xl mx-auto">
-      <h2 className="serif-heading text-2xl">{form.id ? "Редактировать образ" : "Новый образ"}</h2>
+      <h2 className="serif-heading text-2xl">Редактировать образ <span className="text-xs text-muted font-normal">#{form.id}</span></h2>
       <TextField
         label="Название"
         value={form.title}
@@ -252,9 +254,14 @@ function OutfitForm({
         onChange={(v) => patch("is_published", v)}
       />
 
-      {form.id > 0 && (
+      {/* фото-блок виден всегда — для новых образов id уже создан как draft */}
+      {(
         <div>
-          <span className="block text-xs uppercase tracking-tighter text-muted mb-1">Картинки</span>
+          <span className="block text-xs uppercase tracking-tighter text-muted mb-1">📸 Фотографии образа</span>
+          <p className="text-[11px] text-muted mb-2">
+            Перетащи файлы в зону ниже или кликни по ней. Можно несколько за раз.
+            Фото сразу попадает в Storage, сжимается до 1600px.
+          </p>
           <div className="flex flex-wrap gap-2 mb-2">
             {(form.outfit_images || []).map((img) => (
               <div key={img.id} className="relative">
