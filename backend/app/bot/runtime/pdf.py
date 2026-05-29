@@ -1,9 +1,15 @@
-"""Generate A4 portrait PDFs of the matched outfits with a bottom watermark.
+"""Красивая верстка PDF подборок образов.
 
-Layout per page: 2 outfits stacked vertically (image + caption + chips).
-Watermark at the very bottom: ``@client · @bot · DD.MM.YYYY``.
-
-We use ReportLab — no system dependencies, easy to vendor in the Docker image.
+Изменения от первой версии:
+* Обложка с цветной плашкой, большой serif-подобной шапкой бренда,
+  крупным именем клиента и датой.
+* Каждый блок (Понравилось / Может подойти) открывается своей
+  цветной полосой-заголовком на всю ширину.
+* Карточка: квадратное превью образа слева, заголовок + чипсы-теги
+  (цвета/стили/сезоны/поводы) справа, тонкая разделительная линия
+  под карточкой.
+* В чипсах — серый pill-фон, читабельный размер.
+* Внизу каждой страницы — тонкий watermark.
 """
 
 from __future__ import annotations
@@ -27,13 +33,17 @@ from app.core.supabase import get_supabase
 log = logging.getLogger(__name__)
 
 PAGE_W, PAGE_H = A4
-MARGIN = 36  # 0.5"
-GUTTER = 14
-CARD_TITLE_PT = 14
-CARD_BODY_PT = 9
-WATERMARK_PT = 8
+MARGIN = 40
 
-# Lazy register a unicode font for Cyrillic. Falls back to Helvetica if not found.
+# Палитра
+INK = HexColor("#1a1a1a")
+MUTED = HexColor("#6b6b6b")
+LINE = HexColor("#e6e1d8")
+PAPER = HexColor("#faf7f2")
+ACCENT = HexColor("#8b6f47")  # тёплый бежевый/коричневый
+LIKED = HexColor("#b08968")  # для секции "Понравилось"
+MAYBE = HexColor("#a8a8a8")  # для секции "Может подойти"
+
 _FONT_REGISTERED = False
 _FONT_NAME = "Helvetica"
 _FONT_NAME_BOLD = "Helvetica-Bold"
@@ -43,8 +53,6 @@ def _ensure_fonts() -> None:
     global _FONT_REGISTERED, _FONT_NAME, _FONT_NAME_BOLD
     if _FONT_REGISTERED:
         return
-    # Try common DejaVu locations (present in Debian-based Docker images and
-    # most Linux dev machines). Cyrillic glyphs are essential.
     candidates = [
         (
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -67,19 +75,29 @@ def _ensure_fonts() -> None:
 
 
 def _watermark(c: canvas.Canvas, *, client: str, bot: str, when: str) -> None:
+    c.setFillColor(LINE)
+    c.setStrokeColor(LINE)
+    c.setLineWidth(0.5)
+    c.line(MARGIN, MARGIN - 4, PAGE_W - MARGIN, MARGIN - 4)
+    c.setFont(_FONT_NAME, 7)
+    c.setFillColor(MUTED)
     label = f"@{client.lstrip('@')}  ·  @{bot.lstrip('@')}  ·  {when}"
-    c.setFont(_FONT_NAME, WATERMARK_PT)
-    c.setFillColor(HexColor("#9a9a9a"))
-    c.drawCentredString(PAGE_W / 2, MARGIN / 2, label)
-    # Brand line above (very subtle)
-    brand = f"{settings.brand_name}  ·  {settings.public_web_url.replace('https://', '')}"
-    c.setFillColor(HexColor("#cccccc"))
-    c.drawCentredString(PAGE_W / 2, MARGIN / 2 + 10, brand)
-    c.setFillColor(HexColor("#000000"))
+    c.drawCentredString(PAGE_W / 2, MARGIN - 14, label)
+    brand = settings.brand_name
+    c.setFillColor(ACCENT)
+    c.setFont(_FONT_NAME_BOLD, 7)
+    c.drawString(MARGIN, MARGIN - 14, brand.upper())
+    c.setFillColor(MUTED)
+    c.setFont(_FONT_NAME, 7)
+    c.drawRightString(
+        PAGE_W - MARGIN,
+        MARGIN - 14,
+        settings.public_web_url.replace("https://", "").replace("http://", ""),
+    )
+    c.setFillColor(INK)
 
 
 def _download_image(storage_path: str) -> bytes | None:
-    """Fetch outfit image bytes from Supabase Storage (public bucket)."""
     if not storage_path:
         return None
     base = settings.supabase_url.rstrip("/")
@@ -97,7 +115,39 @@ def _download_image(storage_path: str) -> bytes | None:
         return None
 
 
-def _draw_outfit_card(
+def _chips(c: canvas.Canvas, x: float, y: float, w: float, items: list[str]) -> float:
+    """Отрисовать ряды чипсов-тэгов, возвращает y нижней границы."""
+    if not items:
+        return y
+    pad_x = 6
+    pad_y = 3
+    gap = 4
+    line_h = 14
+    c.setFont(_FONT_NAME, 7.5)
+    cur_x = x
+    cur_y = y
+    for tag in items:
+        if not tag:
+            continue
+        tw = c.stringWidth(tag, _FONT_NAME, 7.5)
+        chip_w = tw + pad_x * 2
+        if cur_x + chip_w > x + w:
+            cur_x = x
+            cur_y -= line_h + gap
+        c.setFillColor(PAPER)
+        c.setStrokeColor(LINE)
+        c.roundRect(cur_x, cur_y - pad_y - 1, chip_w, line_h, 6, stroke=1, fill=1)
+        c.setFillColor(INK)
+        c.drawString(cur_x + pad_x, cur_y + 2, tag)
+        cur_x += chip_w + gap
+    return cur_y - 4
+
+
+def _split_tags(value: str) -> list[str]:
+    return [t.strip() for t in (value or "").split(",") if t.strip()]
+
+
+def _draw_card(
     c: canvas.Canvas,
     *,
     x: float,
@@ -106,23 +156,31 @@ def _draw_outfit_card(
     h: float,
     outfit: dict[str, Any],
 ) -> None:
-    """Draw a single outfit card occupying the given rect."""
-    # Image area (top 70% of the card)
-    img_h = h * 0.66
-    img_y = y + h - img_h
+    """Карточка: квадратное превью слева, заголовок + чипсы справа."""
+    # Тонкая рамка
+    c.setStrokeColor(LINE)
+    c.setLineWidth(0.5)
+    c.roundRect(x, y, w, h, 6, stroke=1, fill=0)
+
+    img_size = h - 16
+    img_x = x + 8
+    img_y = y + 8
     images = outfit.get("outfit_images") or []
-    main_img = images[0] if images else None
-    drew_image = False
-    if main_img:
-        blob = _download_image(main_img.get("storage_path") or "")
+    drew = False
+    if images:
+        path = images[0].get("storage_path") or ""
+        blob = _download_image(path)
         if blob:
             try:
                 ir = ImageReader(io.BytesIO(blob))
                 iw, ih = ir.getSize()
-                ratio = min(w / iw, img_h / ih)
+                ratio = min(img_size / iw, img_size / ih)
                 draw_w, draw_h = iw * ratio, ih * ratio
-                offset_x = x + (w - draw_w) / 2
-                offset_y = img_y + (img_h - draw_h) / 2
+                offset_x = img_x + (img_size - draw_w) / 2
+                offset_y = img_y + (img_size - draw_h) / 2
+                # Бекграунд под фото
+                c.setFillColor(PAPER)
+                c.rect(img_x, img_y, img_size, img_size, stroke=0, fill=1)
                 c.drawImage(
                     ir,
                     offset_x,
@@ -132,30 +190,37 @@ def _draw_outfit_card(
                     preserveAspectRatio=True,
                     mask="auto",
                 )
-                drew_image = True
+                drew = True
             except Exception as exc:
                 log.warning("Image draw failed: %s", exc)
+    if not drew:
+        c.setFillColor(PAPER)
+        c.rect(img_x, img_y, img_size, img_size, stroke=0, fill=1)
+        c.setFillColor(MUTED)
+        c.setFont(_FONT_NAME, 8)
+        c.drawCentredString(img_x + img_size / 2, img_y + img_size / 2, "нет фото")
+        c.setFillColor(INK)
 
-    if not drew_image:
-        c.setFillColor(HexColor("#f1f1f1"))
-        c.rect(x, img_y, w, img_h, stroke=0, fill=1)
-        c.setFillColor(HexColor("#888"))
-        c.setFont(_FONT_NAME, 10)
-        c.drawCentredString(x + w / 2, img_y + img_h / 2, "нет фото")
-        c.setFillColor(HexColor("#000"))
-
-    # Title under image
+    # Правая часть: заголовок + теги
+    right_x = x + img_size + 24
+    right_w = w - img_size - 32
     title = str(outfit.get("title") or "Образ")
-    c.setFont(_FONT_NAME_BOLD, CARD_TITLE_PT)
-    c.setFillColor(HexColor("#111"))
-    c.drawString(x, img_y - 8 - CARD_TITLE_PT, title[:80])
+    c.setFillColor(INK)
+    c.setFont(_FONT_NAME_BOLD, 12)
+    c.drawString(right_x, y + h - 22, title[:60])
 
-    # Description / metadata
-    desc = outfit.get("description") or ""
+    desc = (outfit.get("description") or "").strip()
     if desc:
-        c.setFont(_FONT_NAME, CARD_BODY_PT)
-        c.setFillColor(HexColor("#444"))
-        _draw_wrapped(c, desc, x, img_y - 8 - CARD_TITLE_PT - 6, w, max_lines=3)
+        c.setFont(_FONT_NAME, 8.5)
+        c.setFillColor(MUTED)
+        _draw_wrapped(c, desc, right_x, y + h - 38, right_w, max_lines=2, line_h=11)
+
+    # Собираем чипсы: занимают остаток высоты
+    chips: list[str] = []
+    for kind_key in ("colors", "styles", "occasions", "seasons", "shoot_types"):
+        chips.extend(_split_tags(str(outfit.get(kind_key) or "")))
+    chips = chips[:14]  # не больше 14
+    _chips(c, right_x, y + h - 68, right_w, chips)
 
 
 def _draw_wrapped(
@@ -167,26 +232,125 @@ def _draw_wrapped(
     *,
     max_lines: int,
     line_h: float = 11,
+    font_size: float = 8.5,
 ) -> None:
-    """Naive word-wrap. Enough for short captions."""
     words = text.split()
     line: list[str] = []
-    lines_drawn = 0
+    drawn = 0
     cur_y = y
     for word in words:
-        candidate = (" ".join([*line, word])).strip()
-        if c.stringWidth(candidate, _FONT_NAME, CARD_BODY_PT) <= w:
+        cand = (" ".join([*line, word])).strip()
+        if c.stringWidth(cand, _FONT_NAME, font_size) <= w:
             line.append(word)
         else:
             if line:
-                c.drawString(x, cur_y - line_h, " ".join(line))
+                c.drawString(x, cur_y, " ".join(line))
                 cur_y -= line_h
-                lines_drawn += 1
-                if lines_drawn >= max_lines:
+                drawn += 1
+                if drawn >= max_lines:
                     return
             line = [word]
-    if line and lines_drawn < max_lines:
-        c.drawString(x, cur_y - line_h, " ".join(line))
+    if line and drawn < max_lines:
+        c.drawString(x, cur_y, " ".join(line))
+
+
+def _cover(c: canvas.Canvas, *, client: str, when: str, subtitle: str) -> None:
+    # Большая бежевая плашка сверху на треть страницы
+    c.setFillColor(PAPER)
+    c.rect(0, PAGE_H * 0.62, PAGE_W, PAGE_H * 0.38, stroke=0, fill=1)
+
+    # Бренд
+    c.setFillColor(ACCENT)
+    c.setFont(_FONT_NAME_BOLD, 9)
+    c.drawCentredString(PAGE_W / 2, PAGE_H * 0.86, "MARINA ZAUGOLNIKOVA")
+    # Декоративная линия
+    c.setStrokeColor(ACCENT)
+    c.setLineWidth(0.6)
+    c.line(PAGE_W / 2 - 30, PAGE_H * 0.85, PAGE_W / 2 + 30, PAGE_H * 0.85)
+
+    # Заголовок
+    c.setFillColor(INK)
+    c.setFont(_FONT_NAME_BOLD, 36)
+    c.drawCentredString(PAGE_W / 2, PAGE_H * 0.74, "Подбор образов")
+
+    # Подзаголовок
+    c.setFillColor(MUTED)
+    c.setFont(_FONT_NAME, 12)
+    c.drawCentredString(PAGE_W / 2, PAGE_H * 0.70, subtitle)
+
+    # Нижняя часть: клиент + дата
+    c.setFillColor(INK)
+    c.setFont(_FONT_NAME, 11)
+    c.drawCentredString(PAGE_W / 2, PAGE_H * 0.4, f"для @{client.lstrip('@') or 'клиента'}")
+    c.setFillColor(MUTED)
+    c.setFont(_FONT_NAME, 10)
+    c.drawCentredString(PAGE_W / 2, PAGE_H * 0.4 - 16, when)
+
+    # Контакты внизу
+    c.setFont(_FONT_NAME, 8)
+    c.setFillColor(MUTED)
+    c.drawCentredString(PAGE_W / 2, MARGIN + 30, "+7 (985) 196-30-84 · mzaugolnikova@gmail.com")
+    c.drawCentredString(PAGE_W / 2, MARGIN + 18, "zaugolnikova.ru · @mzaugolnikova")
+
+
+def _section_header(c: canvas.Canvas, title: str, count: int, color: HexColor) -> float:
+    """Цветная плашка-заголовок секции. Возвращает y под плашкой."""
+    h = 44
+    top_y = PAGE_H - MARGIN
+    c.setFillColor(color)
+    c.rect(0, top_y - h, PAGE_W, h, stroke=0, fill=1)
+    c.setFillColor(HexColor("#ffffff"))
+    c.setFont(_FONT_NAME_BOLD, 18)
+    c.drawString(MARGIN, top_y - 28, title)
+    c.setFont(_FONT_NAME, 9)
+    c.drawRightString(PAGE_W - MARGIN, top_y - 28, f"{count} образ(ов)")
+    c.setFillColor(INK)
+    return top_y - h - 20
+
+
+def _draw_outfits_page(
+    c: canvas.Canvas,
+    outfits: list[dict[str, Any]],
+    *,
+    start_y: float,
+    client: str,
+    bot: str,
+    when: str,
+    section_title: str | None = None,
+    section_color: HexColor | None = None,
+) -> None:
+    """Раскладывает 4 карточки на страницу. Если влезло не всё — следующая страница."""
+    cards_per_page = 4
+    card_h = 130
+    gap = 10
+    card_w = PAGE_W - 2 * MARGIN
+
+    cur_y = start_y
+    slot = 0
+    for outfit in outfits:
+        if slot >= cards_per_page:
+            _watermark(c, client=client, bot=bot, when=when)
+            c.showPage()
+            # На новой странице — мини-хедер секции (если задана)
+            if section_title:
+                c.setFillColor(MUTED)
+                c.setFont(_FONT_NAME_BOLD, 9)
+                c.drawString(MARGIN, PAGE_H - MARGIN + 4, section_title.upper())
+                c.setStrokeColor(LINE)
+                c.line(MARGIN, PAGE_H - MARGIN - 2, PAGE_W - MARGIN, PAGE_H - MARGIN - 2)
+                c.setFillColor(INK)
+            cur_y = PAGE_H - MARGIN - 16
+            slot = 0
+        _draw_card(
+            c,
+            x=MARGIN,
+            y=cur_y - card_h,
+            w=card_w,
+            h=card_h,
+            outfit=outfit,
+        )
+        cur_y -= card_h + gap
+        slot += 1
 
 
 def generate_pdf(
@@ -195,59 +359,84 @@ def generate_pdf(
     client_username: str,
     bot_username: str,
 ) -> bytes:
-    """Render a multi-page PDF and return raw bytes."""
+    """Один раздел — все образы подряд."""
     _ensure_fonts()
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"{settings.brand_name} — Подбор образов")
     when = datetime.now(tz=UTC).strftime("%d.%m.%Y")
 
-    # Cover page
-    c.setFont(_FONT_NAME_BOLD, 28)
-    c.drawCentredString(PAGE_W / 2, PAGE_H - MARGIN * 3, settings.brand_name)
-    c.setFont(_FONT_NAME, 14)
-    c.setFillColor(HexColor("#555"))
-    c.drawCentredString(PAGE_W / 2, PAGE_H - MARGIN * 3 - 28, "Подбор образов")
-    c.setFillColor(HexColor("#111"))
-    c.setFont(_FONT_NAME, 11)
-    c.drawCentredString(
-        PAGE_W / 2,
-        PAGE_H - MARGIN * 3 - 60,
-        f"Для @{client_username.lstrip('@') or 'клиента'}",
+    _cover(
+        c, client=client_username, when=when, subtitle=f"{len(outfits)} образ(ов) под твою съёмку"
     )
-    c.drawCentredString(PAGE_W / 2, PAGE_H - MARGIN * 3 - 80, when)
     _watermark(c, client=client_username, bot=bot_username, when=when)
     c.showPage()
 
-    # Outfit pages — 2 cards per page (stacked vertically)
-    cards_per_page = 2
-    card_w = PAGE_W - 2 * MARGIN
-    available_h = PAGE_H - 2 * MARGIN - GUTTER * (cards_per_page - 1)
-    card_h = available_h / cards_per_page
-
-    for i, outfit in enumerate(outfits):
-        slot = i % cards_per_page
-        if slot == 0 and i != 0:
-            _watermark(c, client=client_username, bot=bot_username, when=when)
-            c.showPage()
-        y_top = PAGE_H - MARGIN - slot * (card_h + GUTTER)
-        _draw_outfit_card(
-            c,
-            x=MARGIN,
-            y=y_top - card_h,
-            w=card_w,
-            h=card_h,
-            outfit=outfit,
-        )
-
+    start_y = _section_header(c, "Подборка", len(outfits), ACCENT)
+    _draw_outfits_page(
+        c,
+        outfits,
+        start_y=start_y,
+        client=client_username,
+        bot=bot_username,
+        when=when,
+        section_title="Подборка",
+        section_color=ACCENT,
+    )
     _watermark(c, client=client_username, bot=bot_username, when=when)
     c.showPage()
     c.save()
     return buf.getvalue()
 
 
+def generate_pdf_sections(
+    *,
+    sections: list[dict[str, Any]],
+    client_username: str,
+    bot_username: str,
+) -> bytes:
+    """Многосекционный PDF."""
+    _ensure_fonts()
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setTitle(f"{settings.brand_name} — Подбор образов")
+    when = datetime.now(tz=UTC).strftime("%d.%m.%Y")
+    total = sum(len(s.get("outfits") or []) for s in sections)
+
+    _cover(
+        c,
+        client=client_username,
+        when=when,
+        subtitle=f"{total} образ(ов) · {len(sections)} раздела",
+    )
+    _watermark(c, client=client_username, bot=bot_username, when=when)
+    c.showPage()
+
+    palette = [LIKED, MAYBE, ACCENT]
+    for i, section in enumerate(sections):
+        title = str(section.get("title") or "Раздел")
+        outfits = section.get("outfits") or []
+        if not outfits:
+            continue
+        color = palette[i % len(palette)]
+        start_y = _section_header(c, title, len(outfits), color)
+        _draw_outfits_page(
+            c,
+            outfits,
+            start_y=start_y,
+            client=client_username,
+            bot=bot_username,
+            when=when,
+            section_title=title,
+            section_color=color,
+        )
+        _watermark(c, client=client_username, bot=bot_username, when=when)
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def upload_pdf(blob: bytes, *, telegram_id: int) -> str:
-    """Upload generated PDF to Supabase and return its public URL."""
     sb = get_supabase()
     ts = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
     path = f"{telegram_id}/{ts}.pdf"
@@ -258,84 +447,3 @@ def upload_pdf(blob: bytes, *, telegram_id: int) -> str:
     )
     base = settings.supabase_url.rstrip("/")
     return f"{base}/storage/v1/object/public/{settings.storage_bucket_pdfs}/{path}"
-
-
-def generate_pdf_sections(
-    *,
-    sections: list[dict[str, Any]],
-    client_username: str,
-    bot_username: str,
-) -> bytes:
-    """Многосекционный PDF: каждая секция получает свой титульник и страницы.
-
-    sections: [{"title": "Понравилось", "outfits": [...]}, ...]
-    """
-    _ensure_fonts()
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
-    c.setTitle(f"{settings.brand_name} — Подбор образов")
-    when = datetime.now(tz=UTC).strftime("%d.%m.%Y")
-
-    # Cover
-    c.setFont(_FONT_NAME_BOLD, 28)
-    c.drawCentredString(PAGE_W / 2, PAGE_H - MARGIN * 3, settings.brand_name)
-    c.setFont(_FONT_NAME, 14)
-    c.setFillColor(HexColor("#555"))
-    c.drawCentredString(PAGE_W / 2, PAGE_H - MARGIN * 3 - 28, "Подбор образов")
-    c.setFillColor(HexColor("#111"))
-    c.setFont(_FONT_NAME, 11)
-    c.drawCentredString(
-        PAGE_W / 2,
-        PAGE_H - MARGIN * 3 - 60,
-        f"Для @{client_username.lstrip('@') or 'клиента'}",
-    )
-    c.drawCentredString(PAGE_W / 2, PAGE_H - MARGIN * 3 - 80, when)
-    _watermark(c, client=client_username, bot=bot_username, when=when)
-    c.showPage()
-
-    cards_per_page = 2
-    card_w = PAGE_W - 2 * MARGIN
-    available_h = PAGE_H - 2 * MARGIN - GUTTER * (cards_per_page - 1) - 40
-    card_h = available_h / cards_per_page
-
-    for section in sections:
-        title = str(section.get("title") or "")
-        outfits = section.get("outfits") or []
-        if not outfits:
-            continue
-        # Section title page-header (на первой странице секции)
-        c.setFont(_FONT_NAME_BOLD, 20)
-        c.setFillColor(HexColor("#111"))
-        c.drawString(MARGIN, PAGE_H - MARGIN - 12, title)
-        c.setFillColor(HexColor("#999"))
-        c.setFont(_FONT_NAME, 9)
-        c.drawString(MARGIN, PAGE_H - MARGIN - 26, f"{len(outfits)} образ(ов)")
-        c.setFillColor(HexColor("#000"))
-
-        section_top = PAGE_H - MARGIN - 40
-
-        for i, outfit in enumerate(outfits):
-            slot = i % cards_per_page
-            if slot == 0 and i != 0:
-                _watermark(c, client=client_username, bot=bot_username, when=when)
-                c.showPage()
-                # Повторяем мини-хедер секции на новых страницах
-                c.setFont(_FONT_NAME_BOLD, 11)
-                c.setFillColor(HexColor("#888"))
-                c.drawString(MARGIN, PAGE_H - MARGIN + 4, title)
-                c.setFillColor(HexColor("#000"))
-                section_top = PAGE_H - MARGIN - 4
-            y_top = section_top - slot * (card_h + GUTTER)
-            _draw_outfit_card(
-                c,
-                x=MARGIN,
-                y=y_top - card_h,
-                w=card_w,
-                h=card_h,
-                outfit=outfit,
-            )
-        _watermark(c, client=client_username, bot=bot_username, when=when)
-        c.showPage()
-
-    c.save()
-    return buf.getvalue()
