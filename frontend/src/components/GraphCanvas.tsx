@@ -11,7 +11,7 @@
  *  - подсветка ошибок валидатора (красная рамка для error, жёлтая для warning).
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import type { BlockNode, FlowGraph } from "@/types";
 import { schemaFor } from "@/lib/blockSchemas";
 import type { Issue } from "@/lib/validator";
@@ -53,21 +53,25 @@ function snap(v: number): number {
   return Math.round(v / GRID) * GRID;
 }
 
-function ensurePositions(graph: FlowGraph): FlowGraph {
-  let dirty = false;
-  const nodes = graph.nodes.map((n, i) => {
-    if (n.position && typeof n.position.x === "number" && typeof n.position.y === "number") {
-      // Если позиция совсем не координата (старые seeds кладут {x:0,y:1}), масштабируем
-      if (Math.abs(n.position.x) < 10 && Math.abs(n.position.y) < 10) {
-        dirty = true;
-        return { ...n, position: { x: 80 + n.position.x * (NODE_W + 80), y: 80 + n.position.y * (NODE_H + 60) } };
-      }
-      return n;
+/**
+ * Возвращает позицию узла — либо из node.position, либо вычисляет дефолтную
+ * по индексу. Чисто read-only, граф НЕ мутирует, чтобы не было бесконечных
+ * setState→re-render циклов (это была причина «белого экрана»).
+ */
+function posOf(n: BlockNode, index: number): { x: number; y: number } {
+  const p = n.position;
+  if (p && typeof p.x === "number" && typeof p.y === "number") {
+    // Старые seeds кладут логические индексы {x:0,y:1} — масштабируем визуально,
+    // но в state не пишем (запишется только когда юзер сам подвинет блок).
+    if (Math.abs(p.x) < 10 && Math.abs(p.y) < 10) {
+      return { x: 80 + p.x * (NODE_W + 80), y: 80 + p.y * (NODE_H + 60) };
     }
-    dirty = true;
-    return { ...n, position: { x: 80 + (i % 4) * (NODE_W + 60), y: 80 + Math.floor(i / 4) * (NODE_H + 80) } };
-  });
-  return dirty ? { ...graph, nodes } : graph;
+    return { x: p.x, y: p.y };
+  }
+  return {
+    x: 80 + (index % 4) * (NODE_W + 60),
+    y: 80 + Math.floor(index / 4) * (NODE_H + 80),
+  };
 }
 
 function bezierPath(x1: number, y1: number, x2: number, y2: number): string {
@@ -76,20 +80,24 @@ function bezierPath(x1: number, y1: number, x2: number, y2: number): string {
 }
 
 export default function GraphCanvas(props: GraphCanvasProps) {
-  const { selectedId, onSelect, onChange, onRemove, issues } = props;
-  const graph = useMemo(() => ensurePositions(props.graph), [props.graph]);
+  const { graph, selectedId, onSelect, onChange, onRemove, issues } = props;
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [drag, setDrag] = useState<DragState>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [panning, setPanning] = useState<{ x: number; y: number } | null>(null);
 
-  // Если ensurePositions что-то подвинул — отразим в графе один раз
-  useEffect(() => {
-    if (graph !== props.graph) {
-      onChange(graph);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // index -> resolved position; считаем один раз за рендер, никаких setState отсюда
+  const posByIdx = useMemo(
+    () => graph.nodes.map((n, i) => posOf(n, i)),
+    [graph.nodes],
+  );
+  const posById = useMemo(() => {
+    const m: Record<string, { x: number; y: number }> = {};
+    graph.nodes.forEach((n, i) => {
+      if (n.id) m[n.id] = posByIdx[i];
+    });
+    return m;
+  }, [graph.nodes, posByIdx]);
 
   const nodesById = useMemo(() => {
     const m: Record<string, BlockNode> = {};
@@ -135,7 +143,7 @@ export default function GraphCanvas(props: GraphCanvasProps) {
     e.stopPropagation();
     onSelect(n.id);
     const { x, y } = toLocal(e.clientX, e.clientY);
-    const pos = n.position || { x: 0, y: 0 };
+    const pos = posById[n.id] || { x: 0, y: 0 };
     setDrag({ kind: "node", id: n.id, offsetX: x - pos.x, offsetY: y - pos.y });
   }
 
@@ -216,10 +224,12 @@ export default function GraphCanvas(props: GraphCanvasProps) {
             const a = nodesById[e.from];
             const b = nodesById[e.to];
             if (!a || !b) return null;
-            const ax = (a.position?.x ?? 0) + NODE_W;
-            const ay = (a.position?.y ?? 0) + NODE_H / 2;
-            const bx = b.position?.x ?? 0;
-            const by = (b.position?.y ?? 0) + NODE_H / 2;
+            const ap = posById[a.id] || { x: 0, y: 0 };
+            const bp = posById[b.id] || { x: 0, y: 0 };
+            const ax = ap.x + NODE_W;
+            const ay = ap.y + NODE_H / 2;
+            const bx = bp.x;
+            const by = bp.y + NODE_H / 2;
             const color = e.kind === "button" ? "#0ea5e9" : "#64748b";
             return (
               <path
@@ -238,11 +248,11 @@ export default function GraphCanvas(props: GraphCanvasProps) {
             );
           })}
           {/* Pending link */}
-          {drag?.kind === "link" && nodesById[drag.fromId] && (
+          {drag?.kind === "link" && posById[drag.fromId] && (
             <path
               d={bezierPath(
-                (nodesById[drag.fromId].position?.x ?? 0) + NODE_W,
-                (nodesById[drag.fromId].position?.y ?? 0) + NODE_H / 2,
+                posById[drag.fromId].x + NODE_W,
+                posById[drag.fromId].y + NODE_H / 2,
                 drag.cursorX,
                 drag.cursorY,
               )}
@@ -253,9 +263,10 @@ export default function GraphCanvas(props: GraphCanvasProps) {
             />
           )}
           {/* Nodes */}
-          {graph.nodes.map((n) => {
-            const x = n.position?.x ?? 0;
-            const y = n.position?.y ?? 0;
+          {graph.nodes.map((n, idx) => {
+            const p = posByIdx[idx];
+            const x = p.x;
+            const y = p.y;
             const isSelected = n.id === selectedId;
             const level = nodeIssueLevel(n.id, issues);
             const schema = schemaFor(n.type);
