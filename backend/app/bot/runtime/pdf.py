@@ -258,3 +258,84 @@ def upload_pdf(blob: bytes, *, telegram_id: int) -> str:
     )
     base = settings.supabase_url.rstrip("/")
     return f"{base}/storage/v1/object/public/{settings.storage_bucket_pdfs}/{path}"
+
+
+def generate_pdf_sections(
+    *,
+    sections: list[dict[str, Any]],
+    client_username: str,
+    bot_username: str,
+) -> bytes:
+    """Многосекционный PDF: каждая секция получает свой титульник и страницы.
+
+    sections: [{"title": "Понравилось", "outfits": [...]}, ...]
+    """
+    _ensure_fonts()
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setTitle(f"{settings.brand_name} — Подбор образов")
+    when = datetime.now(tz=UTC).strftime("%d.%m.%Y")
+
+    # Cover
+    c.setFont(_FONT_NAME_BOLD, 28)
+    c.drawCentredString(PAGE_W / 2, PAGE_H - MARGIN * 3, settings.brand_name)
+    c.setFont(_FONT_NAME, 14)
+    c.setFillColor(HexColor("#555"))
+    c.drawCentredString(PAGE_W / 2, PAGE_H - MARGIN * 3 - 28, "Подбор образов")
+    c.setFillColor(HexColor("#111"))
+    c.setFont(_FONT_NAME, 11)
+    c.drawCentredString(
+        PAGE_W / 2,
+        PAGE_H - MARGIN * 3 - 60,
+        f"Для @{client_username.lstrip('@') or 'клиента'}",
+    )
+    c.drawCentredString(PAGE_W / 2, PAGE_H - MARGIN * 3 - 80, when)
+    _watermark(c, client=client_username, bot=bot_username, when=when)
+    c.showPage()
+
+    cards_per_page = 2
+    card_w = PAGE_W - 2 * MARGIN
+    available_h = PAGE_H - 2 * MARGIN - GUTTER * (cards_per_page - 1) - 40
+    card_h = available_h / cards_per_page
+
+    for section in sections:
+        title = str(section.get("title") or "")
+        outfits = section.get("outfits") or []
+        if not outfits:
+            continue
+        # Section title page-header (на первой странице секции)
+        c.setFont(_FONT_NAME_BOLD, 20)
+        c.setFillColor(HexColor("#111"))
+        c.drawString(MARGIN, PAGE_H - MARGIN - 12, title)
+        c.setFillColor(HexColor("#999"))
+        c.setFont(_FONT_NAME, 9)
+        c.drawString(MARGIN, PAGE_H - MARGIN - 26, f"{len(outfits)} образ(ов)")
+        c.setFillColor(HexColor("#000"))
+
+        section_top = PAGE_H - MARGIN - 40
+
+        for i, outfit in enumerate(outfits):
+            slot = i % cards_per_page
+            if slot == 0 and i != 0:
+                _watermark(c, client=client_username, bot=bot_username, when=when)
+                c.showPage()
+                # Повторяем мини-хедер секции на новых страницах
+                c.setFont(_FONT_NAME_BOLD, 11)
+                c.setFillColor(HexColor("#888"))
+                c.drawString(MARGIN, PAGE_H - MARGIN + 4, title)
+                c.setFillColor(HexColor("#000"))
+                section_top = PAGE_H - MARGIN - 4
+            y_top = section_top - slot * (card_h + GUTTER)
+            _draw_outfit_card(
+                c,
+                x=MARGIN,
+                y=y_top - card_h,
+                w=card_w,
+                h=card_h,
+                outfit=outfit,
+            )
+        _watermark(c, client=client_username, bot=bot_username, when=when)
+        c.showPage()
+
+    c.save()
+    return buf.getvalue()

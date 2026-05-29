@@ -50,6 +50,7 @@ export interface Outfit {
   body_types: string;
   budgets: string;
   shoot_types: string;
+  gender: string;
   price_hint: string | null;
   external_url: string | null;
   pinterest_url: string | null;

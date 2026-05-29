@@ -364,6 +364,7 @@ export async function statsEvents(role: Role): Promise<Record<string, number>> {
 // ---------- Outfit categories (admin manages, mama reads) ----------
 
 export type CategoryKind =
+  | "gender"
   | "colors"
   | "styles"
   | "seasons"
@@ -373,6 +374,7 @@ export type CategoryKind =
   | "shoot_types";
 
 export const CATEGORY_KINDS: { kind: CategoryKind; label: string }[] = [
+  { kind: "gender",      label: "Пол" },
   { kind: "colors",      label: "Цвета" },
   { kind: "styles",      label: "Стили" },
   { kind: "seasons",     label: "Сезоны" },

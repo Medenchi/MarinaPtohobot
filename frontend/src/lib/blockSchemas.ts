@@ -275,6 +275,37 @@ export const BLOCK_SCHEMAS: BlockSchema[] = [
     hasNext: true,
     fields: [{ key: "message", label: "Текст сводки", kind: "textarea" }],
   },
+  {
+    type: "show_outfits_voting",
+    group: "special",
+    title: "Карусель с лайками",
+    description: "Шлёт N фото-карточек с кнопками 👍/💔. Сохраняет id в vars.liked_ids / disliked_ids.",
+    hasNext: true,
+    fields: [
+      { key: "items_var", label: "Источник", kind: "text", placeholder: "matched_outfits" },
+      { key: "intro", label: "Подводка перед каруселью", kind: "textarea" },
+      { key: "limit", label: "Сколько максимум", kind: "number", placeholder: "10" },
+      { key: "liked_var", label: "Переменная для лайков", kind: "text", placeholder: "liked_ids" },
+      { key: "disliked_var", label: "Для дизлайков", kind: "text", placeholder: "disliked_ids" },
+      { key: "done_text", label: "Текст под кнопкой Готово", kind: "text" },
+      { key: "done_button", label: "Подпись на кнопке", kind: "text", placeholder: "✅ Готово, дальше" },
+    ],
+  },
+  {
+    type: "generate_pdf_voted",
+    group: "special",
+    title: "PDF с секциями (Понравилось / Может подойти)",
+    description: "Сборка PDF: liked_ids → раздел «Понравилось», остальные → «Может подойти». Если лайков нет — без секций.",
+    hasNext: true,
+    fields: [
+      { key: "items_var", label: "Источник", kind: "text", placeholder: "matched_outfits" },
+      { key: "liked_var", label: "Переменная с лайками", kind: "text", placeholder: "liked_ids" },
+      { key: "filename", label: "Имя файла", kind: "text", placeholder: "podbor_obrazov.pdf" },
+      { key: "caption", label: "Подпись при отправке", kind: "textarea" },
+      { key: "send_now", label: "Отправить сразу", kind: "boolean" },
+      { key: "save_to", label: "Сохранить ссылку в", kind: "text", placeholder: "pdf" },
+    ],
+  },
 ];
 
 export function schemaFor(type: string): BlockSchema | undefined {

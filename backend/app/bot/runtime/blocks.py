@@ -17,10 +17,16 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 from aiogram.enums import ChatAction
-from aiogram.types import BufferedInputFile, InputMediaPhoto, URLInputFile
+from aiogram.types import (
+    BufferedInputFile,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    URLInputFile,
+)
 
 from app.bot.runtime.keyboards import build_inline, build_reply
-from app.bot.runtime.pdf import generate_pdf, upload_pdf
+from app.bot.runtime.pdf import generate_pdf, generate_pdf_sections, upload_pdf
 from app.bot.runtime.state import log_event
 from app.bot.runtime.vars import render
 from app.core.config import settings
@@ -460,6 +466,185 @@ async def handoff_to_admin(
 # ---------------------------------------------------------------------------
 
 
+async def show_outfits_voting(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    """Карусель образов с лайками.
+
+    Отправляет N карточек (фото + название + кнопки 👍/💔). Каждое нажатие
+    записывает outfit_id в vars[liked_var] / vars[disliked_var]. Это
+    one-shot блок — после отправки сразу advance, кнопки работают в фоне
+    через стандартный callback-механизм.
+    """
+    p = node.get("params") or {}
+    items_key = p.get("items_var") or "matched_outfits"
+    items = ctx.vars.get(items_key) or []
+    if not isinstance(items, list) or not items:
+        return _advance(node)
+
+    liked_var = p.get("liked_var") or "liked_ids"
+    disliked_var = p.get("disliked_var") or "disliked_ids"
+    next_id = node.get("next") or ""
+
+    # Инициализируем коллекции в vars (если ещё нет)
+    ctx.vars.setdefault(liked_var, [])
+    ctx.vars.setdefault(disliked_var, [])
+
+    base = settings.supabase_url.rstrip("/")
+    bucket = settings.storage_bucket_outfits
+
+    intro = str(render(p.get("intro") or "", ctx.template_ctx))
+    if intro:
+        await bot.send_message(chat_id=ctx.chat_id, text=intro, parse_mode="HTML")
+
+    max_count = int(p.get("limit") or 10)
+    for item in items[:max_count]:
+        if not isinstance(item, dict):
+            continue
+        imgs = item.get("outfit_images") or []
+        if not imgs:
+            continue
+        path = imgs[0].get("storage_path")
+        if not path:
+            continue
+        title = str(item.get("title") or "Образ")
+        oid = item.get("id")
+        if oid is None:
+            continue
+        # Кнопки 👍/💔 — callback'и идут на ЭТОТ ЖЕ узел, value = "like:{id}" / "skip:{id}"
+        # Финальная кнопка «Готово» ведёт к node.next
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="💔",
+                        callback_data=f"n:{node['id']}|skip:{oid}",
+                    ),
+                    InlineKeyboardButton(
+                        text="👍",
+                        callback_data=f"n:{node['id']}|like:{oid}",
+                    ),
+                ]
+            ]
+        )
+        try:
+            await bot.send_photo(
+                chat_id=ctx.chat_id,
+                photo=URLInputFile(f"{base}/storage/v1/object/public/{bucket}/{path}"),
+                caption=title[:1024],
+                reply_markup=kb,
+            )
+        except Exception:
+            log.exception("voting photo failed for outfit %s", oid)
+
+    done_text = str(render(p.get("done_text") or "Когда отметишь — нажми сюда:", ctx.template_ctx))
+    done_btn = str(render(p.get("done_button") or "✅ Готово, дальше", ctx.template_ctx))
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=done_btn, callback_data=f"n:{next_id}|done"),
+            ]
+        ]
+    )
+    await bot.send_message(
+        chat_id=ctx.chat_id,
+        text=done_text,
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+    # Блок «застывает» — пользователь сам решает, когда дальше
+    ctx.session.awaiting_input = False
+    return None
+
+
+async def collect_vote(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    """Невидимый блок — обрабатывает 'like:<id>' / 'skip:<id>' callbacks.
+
+    На самом деле логику сбора лайков выполняет engine при разборе callback'а
+    через специальный префикс. Этот блок-обработчик не нужен — оставлен для
+    совместимости со старыми флоу. NO-OP.
+    """
+    return _advance(node)
+
+
+async def generate_pdf_voted(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    """PDF c двумя секциями: «Понравилось» (liked_ids) + «Может подойти» (остальные).
+
+    Если ни одного лайка не было — отправляет PDF без секций, все подряд.
+    """
+    p = node.get("params") or {}
+    items_key = p.get("items_var") or "matched_outfits"
+    liked_var = p.get("liked_var") or "liked_ids"
+    items = ctx.vars.get(items_key) or []
+    liked_ids = ctx.vars.get(liked_var) or []
+    if not isinstance(items, list) or not items:
+        return _advance(node)
+
+    liked_set = {int(x) for x in liked_ids if str(x).isdigit()}
+    liked_outfits = [o for o in items if isinstance(o, dict) and int(o.get("id") or 0) in liked_set]
+    other_outfits = [
+        o for o in items if isinstance(o, dict) and int(o.get("id") or 0) not in liked_set
+    ]
+
+    if liked_outfits or (len(items) > 0 and liked_set):
+        sections = [
+            {"title": "Понравилось", "outfits": liked_outfits},
+            {"title": "Может подойти", "outfits": other_outfits},
+        ]
+        blob = generate_pdf_sections(
+            sections=sections,
+            client_username=str(
+                ctx.tg_user.get("username") or ctx.tg_user.get("first_name") or "клиент"
+            ),
+            bot_username=settings.bot_username or "bot",
+        )
+    else:
+        # Не отмечал ничего — без категорий
+        blob = generate_pdf(
+            outfits=items,
+            client_username=str(
+                ctx.tg_user.get("username") or ctx.tg_user.get("first_name") or "клиент"
+            ),
+            bot_username=settings.bot_username or "bot",
+        )
+
+    try:
+        url = upload_pdf(blob, telegram_id=int(ctx.tg_user.get("id") or 0))
+    except Exception as exc:
+        log.warning("PDF upload failed: %s", exc)
+        url = ""
+    save_to = str(p.get("save_to") or "pdf")
+    file_name = str(render(p.get("filename") or "podbor_obrazov.pdf", ctx.template_ctx))
+    ctx.vars[save_to] = {"url": url, "filename": file_name, "size": len(blob)}
+
+    if p.get("send_now", True):
+        caption = str(render(p.get("caption") or "", ctx.template_ctx)) or None
+        await bot.send_document(
+            chat_id=ctx.chat_id,
+            document=BufferedInputFile(blob, filename=file_name),
+            caption=caption,
+        )
+    log_event(
+        telegram_id=ctx.tg_user.get("id"),
+        telegram_username=ctx.tg_user.get("username"),
+        flow_id=ctx.flow_id,
+        node_id=node.get("id"),
+        event_type="pdf_generated",
+        payload={"total": len(items), "liked": len(liked_outfits)},
+    )
+    return _advance(node)
+
+
 def _advance(node: dict[str, Any]) -> str | None:
     return node.get("next")
 
@@ -480,6 +665,9 @@ BLOCKS = {
     "db_query": db_query,
     "db_insert": db_insert,
     "generate_pdf": generate_pdf_block,
+    "generate_pdf_voted": generate_pdf_voted,
+    "show_outfits_voting": show_outfits_voting,
+    "collect_vote": collect_vote,
     "http_request": http_request,
     "handoff_to_admin": handoff_to_admin,
 }
