@@ -100,6 +100,15 @@ async def _make_ctx(bot: Bot, chat_id: int, tg_user_obj: Any) -> ExecutionContex
         return None
     graph = flow.get("graph") or {}
     session = state.load(tg_user_obj.id)
+    # Если в сессии остался id уже удалённого/снятого с публикации флоу,
+    # сбросим прогресс — иначе FK на bot_flows упадёт при save().
+    if session.flow_id and session.flow_id != flow["id"]:
+        log.info(
+            "Migrating tg=%s from old flow=%s to current=%s",
+            session.telegram_id, session.flow_id, flow["id"],
+        )
+        session.current_node_id = None
+        session.awaiting_input = False
     session.flow_id = flow["id"]
     return ExecutionContext(
         chat_id=chat_id,
