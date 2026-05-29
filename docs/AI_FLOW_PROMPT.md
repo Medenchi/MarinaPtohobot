@@ -366,3 +366,99 @@ start → menu (send_message с кнопками-разделами) →
 casual) и для каждого типажа сделай db_query к outfits с
 styles ilike "%типаж%" + покажи топ-5 через send_album.
 ```
+
+---
+
+## 🆕 Дополнение: 30+ новых блоков (aiogram 3.28)
+
+Эти блоки тоже доступны движку — можешь использовать их в `type`:
+
+### Текст / форматирование
+- **`send_heading`** — большой заголовок (`text`, `icon`, `level: 1|2|3`)
+- **`send_quote`** — Telegram blockquote (`text`, `author`, `expandable: bool`)
+- **`send_checklist`** — список с галочками (`title`, `items: list[str]`, `checked: list[int]`)
+- **`send_numbered_list`** — нумерованный список (`title`, `items: list[str]`)
+- **`send_kv_table`** — таблица ключ-значение (`title`, `rows: {имя: значение}`)
+- **`send_with_preview`** — сообщение с превью ссылки (`text`, `url`, `above_text: bool`, `large: bool`)
+
+### Медиа
+- **`send_sticker`** (`sticker_id: file_id`)
+- **`send_voice`** (`url`) / **`send_audio`** (`url`, `title`, `performer`)
+- **`send_video_note`** (`url`) — круглое видео
+- **`send_location`** (`latitude`, `longitude`)
+- **`send_venue`** (`latitude`, `longitude`, `title`, `address`) — место с адресом
+- **`send_contact`** (`phone`, `first_name`, `last_name`)
+- **`send_dice`** (`emoji: 🎲🎯🏀⚽🎳🎰`, `save_to`) — анимированный бросок
+- **`send_poll`** (`question`, `options`, `anonymous`, `multiple`)
+- **`send_chat_action`** (`action: typing/upload_photo/record_voice/...`, `seconds`)
+
+### Интерактив (aiogram 3.17+, 3.28)
+- **`send_copy_button`** (`text`, `button_text`, `copy_text`) — кнопка `CopyTextButton`, копирует в буфер
+- **`send_webapp_button`** (`text`, `button_text`, `url: https://`) — открывает Mini App через `WebAppInfo`
+- **`send_share_button`** (`text`, `button_text`, `share_text`) — t.me/share/url
+- **`send_rating`** (`text`, `scale: 1-10`, `save_to`) — звёздочки, результат в vars
+
+### Логика
+- **`random_branch`** (`choices: ["node_a", "node_b", "node_c"]`) — случайно один
+- **`switch`** (`variable`, `cases: {"love": "node_a", "family": "node_b"}`, `default`)
+- **`increment_var`** (`name`, `delta`)
+- **`append_to_list`** (`name`, `value`)
+- **`regex_extract`** (`source: "{{vars.input}}"`, `pattern`, `save_to`)
+- **`math_eval`** (`expression: "{{vars.a}} + {{vars.b}}"`, `save_to`)
+- **`time_window`** (`start_hour`, `end_hour`, `inside_next`, `outside_next`)
+- **`schedule_branch`** (`weekday_next`, `weekend_next`)
+
+### Данные
+- **`db_update`** (`table`, `where: {col: val}`, `fields: {col: val}`)
+- **`db_count`** (`table`, `filters`, `save_to`)
+
+### Контент-специфика
+- **`send_outfit_card`** (`items_var`, `index`) — карточка одного образа с кнопкой «Купить»
+- **`send_outfit_grid`** (`items_var`) — медиа-группа до 10
+- **`show_random_outfit`** (`items_var`) — рандом один из списка
+
+### Примеры использования
+
+```jsonc
+// Чек-лист подготовки к съёмке
+{
+  "id": "preparation",
+  "type": "send_checklist",
+  "params": {
+    "title": "Что взять на съёмку",
+    "items": ["Паспорт", "Образы (2-3 шт)", "Аксессуары", "Хорошее настроение"]
+  },
+  "next": "ask_next"
+}
+
+// Случайный образ дня
+{
+  "id": "daily_outfit",
+  "type": "show_random_outfit",
+  "params": { "items_var": "all_outfits" },
+  "next": "end"
+}
+
+// Звёздочный рейтинг бота
+{
+  "id": "rate_us",
+  "type": "send_rating",
+  "params": { "text": "Оцени бота:", "scale": 5, "save_to": "user_rating" },
+  "next": "thanks"
+}
+
+// Switch по типу съёмки
+{
+  "id": "by_type",
+  "type": "switch",
+  "params": {
+    "variable": "shoot_type",
+    "cases": {
+      "love": "love_branch",
+      "family": "family_branch",
+      "lookbook": "lookbook_branch"
+    },
+    "default": "default_branch"
+  }
+}
+```

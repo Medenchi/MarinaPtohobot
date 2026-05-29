@@ -75,6 +75,7 @@ def _ensure_fonts() -> None:
 
 
 def _watermark(c: canvas.Canvas, *, client: str, bot: str, when: str) -> None:
+    """Тонкий футер: слева бренд, по центру — клиент/бот/дата. Домен НЕ выводим."""
     c.setFillColor(LINE)
     c.setStrokeColor(LINE)
     c.setLineWidth(0.5)
@@ -83,17 +84,9 @@ def _watermark(c: canvas.Canvas, *, client: str, bot: str, when: str) -> None:
     c.setFillColor(MUTED)
     label = f"@{client.lstrip('@')}  ·  @{bot.lstrip('@')}  ·  {when}"
     c.drawCentredString(PAGE_W / 2, MARGIN - 14, label)
-    brand = settings.brand_name
     c.setFillColor(ACCENT)
     c.setFont(_FONT_NAME_BOLD, 7)
-    c.drawString(MARGIN, MARGIN - 14, brand.upper())
-    c.setFillColor(MUTED)
-    c.setFont(_FONT_NAME, 7)
-    c.drawRightString(
-        PAGE_W - MARGIN,
-        MARGIN - 14,
-        settings.public_web_url.replace("https://", "").replace("http://", ""),
-    )
+    c.drawString(MARGIN, MARGIN - 14, settings.brand_name.upper())
     c.setFillColor(INK)
 
 
@@ -286,11 +279,11 @@ def _cover(c: canvas.Canvas, *, client: str, when: str, subtitle: str) -> None:
     c.setFont(_FONT_NAME, 10)
     c.drawCentredString(PAGE_W / 2, PAGE_H * 0.4 - 16, when)
 
-    # Контакты внизу
+    # Контакты внизу (без сайта — он динамически меняется и в PDF не нужен)
     c.setFont(_FONT_NAME, 8)
     c.setFillColor(MUTED)
-    c.drawCentredString(PAGE_W / 2, MARGIN + 30, "+7 (985) 196-30-84 · mzaugolnikova@gmail.com")
-    c.drawCentredString(PAGE_W / 2, MARGIN + 18, "zaugolnikova.ru · @mzaugolnikova")
+    c.drawCentredString(PAGE_W / 2, MARGIN + 30, "+7 (985) 196-30-84")
+    c.drawCentredString(PAGE_W / 2, MARGIN + 18, "mzaugolnikova@gmail.com")
 
 
 def _section_header(c: canvas.Canvas, title: str, count: int, color: HexColor) -> float:

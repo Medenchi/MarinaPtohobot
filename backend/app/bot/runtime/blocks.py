@@ -673,4 +673,9 @@ BLOCKS = {
 }
 
 # Triggers don't execute — they just declare entry points.
+# Merge extras (30+ блоков из extra_blocks.py)
+from app.bot.runtime.extra_blocks import EXTRA_BLOCKS  # noqa: E402
+
+BLOCKS.update(EXTRA_BLOCKS)
+
 TRIGGER_TYPES = {"command", "text_match"}

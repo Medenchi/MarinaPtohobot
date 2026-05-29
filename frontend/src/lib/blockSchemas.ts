@@ -32,6 +32,8 @@ export interface BlockSchema {
   fields: BlockField[];
 }
 
+import { EXTRA_BLOCK_SCHEMAS } from "./extraBlockSchemas";
+
 export const BLOCK_SCHEMAS: BlockSchema[] = [
   // ---- Triggers ----
   {
@@ -306,6 +308,7 @@ export const BLOCK_SCHEMAS: BlockSchema[] = [
       { key: "save_to", label: "Сохранить ссылку в", kind: "text", placeholder: "pdf" },
     ],
   },
+  ...EXTRA_BLOCK_SCHEMAS,
 ];
 
 export function schemaFor(type: string): BlockSchema | undefined {
