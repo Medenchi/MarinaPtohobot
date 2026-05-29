@@ -1,0 +1,409 @@
+{
+  "name": "Бриф перед съёмкой — Марина Заугольникова",
+  "description": "Опросник для нового клиента: тип съёмки, состав, дата, локация, образ, референсы и контакты. Сохраняет заявку в bookings и пингует Марину в Telegram.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "trg_start",
+        "type": "command",
+        "params": { "command": "start" },
+        "next": "hello",
+        "position": { "x": 80, "y": 80 }
+      },
+      {
+        "id": "trg_brief",
+        "type": "command",
+        "params": { "command": "brief" },
+        "next": "hello",
+        "position": { "x": 80, "y": 200 }
+      },
+
+      {
+        "id": "hello",
+        "type": "send_message",
+        "params": {
+          "text": "Привет, {{user.first_name}}! 📸\n\nЯ — бот <b>Марины Заугольниковой</b>, фотографа.\nПомогу собрать всё нужное для съёмки, чтобы Марина пришла к тебе подготовленной.\n\nПройдём короткий бриф — 8–10 вопросов, около 3 минут.\n\nГотов(а)?",
+          "buttons": [
+            [
+              { "text": "✨ Поехали", "next": "ask_name" },
+              { "text": "🤔 Что за съёмки?", "next": "show_pricing" }
+            ]
+          ]
+        },
+        "next": null,
+        "position": { "x": 360, "y": 80 }
+      },
+
+      {
+        "id": "show_pricing",
+        "type": "send_message",
+        "params": {
+          "text": "Марина снимает:\n\n💕 <b>Love-story</b> — парные, лёгкие, тёплые\n👨‍👩‍👧 <b>Семейные</b> — дома и на природе\n🤰 <b>Беременность</b> — нежные, в студии или на улице\n👩 <b>Индивидуальные / lifestyle</b>\n🤝 <b>Lookbook / контент для соцсетей</b>\n\nЧтобы собрать бриф — нажми ниже.",
+          "buttons": [
+            [{ "text": "✨ Пройти бриф", "next": "ask_name" }],
+            [{ "text": "🌐 Сайт Марины", "url": "https://zaugolnikova.ru/" }]
+          ]
+        },
+        "next": null,
+        "position": { "x": 360, "y": 220 }
+      },
+
+      {
+        "id": "ask_name",
+        "type": "ask_question",
+        "params": {
+          "text": "Как тебя зовут? (имя, можно и фамилию)",
+          "variable": "name"
+        },
+        "next": "ask_shoot_type",
+        "position": { "x": 640, "y": 80 }
+      },
+
+      {
+        "id": "ask_shoot_type",
+        "type": "ask_question",
+        "params": {
+          "text": "Какой формат съёмки тебе ближе?",
+          "variable": "shoot_type",
+          "inline": true,
+          "options": [
+            { "text": "💕 Love-story",     "value": "love" },
+            { "text": "👨‍👩‍👧 Семейная",    "value": "family" },
+            { "text": "🤰 Беременность",   "value": "pregnancy" },
+            { "text": "👩 Индивидуальная", "value": "solo" },
+            { "text": "🤝 Lookbook",       "value": "lookbook" }
+          ]
+        },
+        "next": "ask_people",
+        "position": { "x": 920, "y": 80 }
+      },
+
+      {
+        "id": "ask_people",
+        "type": "ask_question",
+        "params": {
+          "text": "Сколько человек будет в кадре? (включая детей)",
+          "variable": "people",
+          "inline": true,
+          "options": [
+            { "text": "1",        "value": "1" },
+            { "text": "2",        "value": "2" },
+            { "text": "3",        "value": "3" },
+            { "text": "4",        "value": "4" },
+            { "text": "5+",       "value": "5+" }
+          ]
+        },
+        "next": "ask_format",
+        "position": { "x": 1200, "y": 80 }
+      },
+
+      {
+        "id": "ask_format",
+        "type": "ask_question",
+        "params": {
+          "text": "Где снимаем?",
+          "variable": "format",
+          "inline": true,
+          "options": [
+            { "text": "🏠 Студия",            "value": "studio" },
+            { "text": "🌳 Улица / природа",   "value": "outdoor" },
+            { "text": "🛋 У клиента дома",    "value": "home" },
+            { "text": "🤷 Помоги выбрать",   "value": "any" }
+          ]
+        },
+        "next": "branch_format",
+        "position": { "x": 1480, "y": 80 }
+      },
+
+      {
+        "id": "branch_format",
+        "type": "branch",
+        "params": {
+          "variable": "{{vars.format}}",
+          "op": "eq",
+          "value": "outdoor",
+          "true_next":  "ask_location_outdoor",
+          "false_next": "branch_format_studio"
+        },
+        "position": { "x": 1480, "y": 220 }
+      },
+      {
+        "id": "branch_format_studio",
+        "type": "branch",
+        "params": {
+          "variable": "{{vars.format}}",
+          "op": "eq",
+          "value": "studio",
+          "true_next":  "ask_location_studio",
+          "false_next": "ask_city"
+        },
+        "position": { "x": 1480, "y": 340 }
+      },
+
+      {
+        "id": "ask_location_outdoor",
+        "type": "ask_question",
+        "params": {
+          "text": "Какая локация на улице нравится? (парк, набережная, поле, центр города…). Если не знаешь — напиши «помочь».",
+          "variable": "location"
+        },
+        "next": "ask_city",
+        "position": { "x": 1760, "y": 60 }
+      },
+      {
+        "id": "ask_location_studio",
+        "type": "ask_question",
+        "params": {
+          "text": "Есть любимая студия в Москве/области? Напиши название или «помочь», если хочешь, чтобы Марина подобрала.",
+          "variable": "location"
+        },
+        "next": "ask_city",
+        "position": { "x": 1760, "y": 180 }
+      },
+
+      {
+        "id": "ask_city",
+        "type": "ask_question",
+        "params": {
+          "text": "В каком городе?",
+          "variable": "city",
+          "inline": true,
+          "options": [
+            { "text": "Москва",     "value": "msk" },
+            { "text": "МО",         "value": "mo" },
+            { "text": "СПб",        "value": "spb" },
+            { "text": "Другой",     "value": "other" }
+          ]
+        },
+        "next": "ask_date",
+        "position": { "x": 2040, "y": 120 }
+      },
+
+      {
+        "id": "ask_date",
+        "type": "ask_question",
+        "params": {
+          "text": "На какие даты ориентируемся? Напиши предпочтительный день или диапазон, например «18–22 июня, лучше суббота».",
+          "variable": "date"
+        },
+        "next": "ask_time",
+        "position": { "x": 2320, "y": 120 }
+      },
+
+      {
+        "id": "ask_time",
+        "type": "ask_question",
+        "params": {
+          "text": "В какое время суток удобнее?",
+          "variable": "time",
+          "inline": true,
+          "options": [
+            { "text": "🌅 Утро",          "value": "morning" },
+            { "text": "☀️ День",           "value": "day" },
+            { "text": "🌇 Золотой час",    "value": "golden" },
+            { "text": "🤷 Любое",         "value": "any" }
+          ]
+        },
+        "next": "ask_mood",
+        "position": { "x": 2600, "y": 120 }
+      },
+
+      {
+        "id": "ask_mood",
+        "type": "ask_question",
+        "params": {
+          "text": "Какое настроение хочется на фото? (можно несколько слов: «уютно, по-семейному», «динамика, смех», «нежно, пастель»)",
+          "variable": "mood"
+        },
+        "next": "ask_outfit",
+        "position": { "x": 2880, "y": 120 }
+      },
+
+      {
+        "id": "ask_outfit",
+        "type": "ask_question",
+        "params": {
+          "text": "Что с образом?",
+          "variable": "outfit",
+          "inline": true,
+          "options": [
+            { "text": "👗 Уже есть",                 "value": "ready" },
+            { "text": "🧠 Нужна помощь с подбором",  "value": "help_needed" },
+            { "text": "🛍 Хочу подборку из бота",     "value": "want_bot_picks" }
+          ]
+        },
+        "next": "branch_outfit",
+        "position": { "x": 3160, "y": 120 }
+      },
+      {
+        "id": "branch_outfit",
+        "type": "branch",
+        "params": {
+          "variable": "{{vars.outfit}}",
+          "op": "eq",
+          "value": "ready",
+          "true_next":  "ask_outfit_desc",
+          "false_next": "ask_refs"
+        },
+        "position": { "x": 3160, "y": 240 }
+      },
+      {
+        "id": "ask_outfit_desc",
+        "type": "ask_question",
+        "params": {
+          "text": "Опиши образ парой слов (цвета, стиль, обувь). Можно сразу прислать фото — Марина учтёт.",
+          "variable": "outfit_desc"
+        },
+        "next": "ask_refs",
+        "position": { "x": 3440, "y": 120 }
+      },
+
+      {
+        "id": "ask_refs",
+        "type": "ask_question",
+        "params": {
+          "text": "Есть референсы? Пришли 1–3 ссылки на Pinterest / Instagram (или напиши «нет»).",
+          "variable": "refs"
+        },
+        "next": "ask_kids",
+        "position": { "x": 3720, "y": 120 }
+      },
+
+      {
+        "id": "ask_kids",
+        "type": "ask_question",
+        "params": {
+          "text": "Будут ли в кадре дети до 10 лет? (важно для тайминга и локации)",
+          "variable": "kids",
+          "inline": true,
+          "options": [
+            { "text": "Да",  "value": "yes" },
+            { "text": "Нет", "value": "no" }
+          ]
+        },
+        "next": "ask_notes",
+        "position": { "x": 4000, "y": 120 }
+      },
+
+      {
+        "id": "ask_notes",
+        "type": "ask_question",
+        "params": {
+          "text": "Что ещё важно знать? (особые пожелания, ограничения по здоровью, сюрприз для второй половинки и т.п.)\n\nЕсли нечего добавить — напиши «нет».",
+          "variable": "notes"
+        },
+        "next": "ask_phone",
+        "position": { "x": 4280, "y": 120 }
+      },
+
+      {
+        "id": "ask_phone",
+        "type": "ask_question",
+        "params": {
+          "text": "Оставь, пожалуйста, контактный номер телефона — Марина свяжется в течение дня.",
+          "variable": "phone"
+        },
+        "next": "ask_contact_pref",
+        "position": { "x": 4560, "y": 120 }
+      },
+
+      {
+        "id": "ask_contact_pref",
+        "type": "ask_question",
+        "params": {
+          "text": "Как удобнее связаться в первый раз?",
+          "variable": "contact_pref",
+          "inline": true,
+          "options": [
+            { "text": "💬 Telegram",  "value": "tg" },
+            { "text": "📞 Звонок",    "value": "call" },
+            { "text": "📱 WhatsApp",  "value": "wa" }
+          ]
+        },
+        "next": "summary",
+        "position": { "x": 4840, "y": 120 }
+      },
+
+      {
+        "id": "summary",
+        "type": "send_message",
+        "params": {
+          "text": "Спасибо, {{vars.name}}! ✨\n\nСобрал бриф:\n\n• Формат: <b>{{vars.shoot_type}}</b>\n• Людей: {{vars.people}}\n• Где: {{vars.format}} ({{vars.city}})\n• Локация: {{vars.location}}\n• Когда: {{vars.date}}, {{vars.time}}\n• Настроение: {{vars.mood}}\n• Образ: {{vars.outfit}} {{vars.outfit_desc}}\n• Референсы: {{vars.refs}}\n• Дети: {{vars.kids}}\n• Заметки: {{vars.notes}}\n• Связь: {{vars.contact_pref}} · {{vars.phone}}\n\nЕсли всё верно — подтверди ниже. Если что-то поправить, нажми «Начать заново».",
+          "buttons": [
+            [
+              { "text": "✅ Всё верно, отправить", "next": "save_booking" },
+              { "text": "🔄 Начать заново",       "next": "hello" }
+            ]
+          ]
+        },
+        "next": null,
+        "position": { "x": 5120, "y": 120 }
+      },
+
+      {
+        "id": "save_booking",
+        "type": "db_insert",
+        "params": {
+          "table": "bookings",
+          "fields": {
+            "full_name":      "{{vars.name}}",
+            "phone":          "{{vars.phone}}",
+            "shoot_type":     "{{vars.shoot_type}}",
+            "preferred_date": "{{vars.date}}",
+            "notes":          "{{vars.notes}}",
+            "payload": {
+              "people":        "{{vars.people}}",
+              "format":        "{{vars.format}}",
+              "city":          "{{vars.city}}",
+              "location":      "{{vars.location}}",
+              "time":          "{{vars.time}}",
+              "mood":          "{{vars.mood}}",
+              "outfit":        "{{vars.outfit}}",
+              "outfit_desc":   "{{vars.outfit_desc}}",
+              "refs":          "{{vars.refs}}",
+              "kids":          "{{vars.kids}}",
+              "contact_pref":  "{{vars.contact_pref}}"
+            }
+          }
+        },
+        "next": "ping_marina",
+        "position": { "x": 5400, "y": 120 }
+      },
+
+      {
+        "id": "ping_marina",
+        "type": "handoff_to_admin",
+        "params": {
+          "text": "🆕 <b>Новая заявка</b> от {{vars.name}} (@{{user.username}})\n\nФормат: {{vars.shoot_type}} · {{vars.format}} · {{vars.city}}\nЛокация: {{vars.location}}\nКогда: {{vars.date}}, {{vars.time}}\nЛюдей: {{vars.people}} (дети: {{vars.kids}})\nНастроение: {{vars.mood}}\nОбраз: {{vars.outfit}} {{vars.outfit_desc}}\nРеференсы: {{vars.refs}}\nЗаметки: {{vars.notes}}\n\n📞 {{vars.phone}} · {{vars.contact_pref}}\n🆔 tg id: {{user.id}}"
+        },
+        "next": "thank_you",
+        "position": { "x": 5680, "y": 120 }
+      },
+
+      {
+        "id": "thank_you",
+        "type": "send_message",
+        "params": {
+          "text": "Готово, {{vars.name}}! 🌿\n\nМарина получила бриф и свяжется с тобой ({{vars.contact_pref}}) в течение дня.\n\nЕсли захочешь что-то добавить или передумаешь — напиши /brief, начнём заново.",
+          "buttons": [
+            [
+              { "text": "🌐 Сайт Марины", "url": "https://zaugolnikova.ru/" },
+              { "text": "💬 Написать",    "url": "https://t.me/marina_photo" }
+            ]
+          ]
+        },
+        "next": "end_flow",
+        "position": { "x": 5960, "y": 120 }
+      },
+
+      {
+        "id": "end_flow",
+        "type": "end",
+        "params": {},
+        "next": null,
+        "position": { "x": 6240, "y": 120 }
+      }
+    ],
+    "edges": []
+  }
+}

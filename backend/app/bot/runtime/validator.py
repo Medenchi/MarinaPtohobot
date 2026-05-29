@@ -136,9 +136,10 @@ def validate_graph(graph: dict[str, Any]) -> list[Issue]:
                         "message": "Вопрос без текста",
                     }
                 )
-        if ntype == "buttons":
-            btns = params.get("buttons") or []
-            if not btns:
+        # Кнопки бывают и у send_message и у buttons; они могут быть list[list[dict]]
+        btns = params.get("buttons")
+        if btns is not None or ntype == "buttons":
+            if not btns and ntype == "buttons":
                 issues.append(
                     {
                         "level": "warning",
@@ -147,17 +148,21 @@ def validate_graph(graph: dict[str, Any]) -> list[Issue]:
                         "message": "У блока кнопок пустой список",
                     }
                 )
-            for b in btns if isinstance(btns, list) else []:
-                tgt = (b or {}).get("target")
-                if tgt and tgt not in node_by_id:
-                    issues.append(
-                        {
-                            "level": "error",
-                            "node_id": nid,
-                            "code": "dangling_button",
-                            "message": f"Кнопка ведёт на «{tgt}», которого нет",
-                        }
-                    )
+            for entry in btns if isinstance(btns, list) else []:
+                row = entry if isinstance(entry, list) else [entry]
+                for b in row:
+                    if not isinstance(b, dict) or b.get("url"):
+                        continue
+                    tgt = b.get("target") or b.get("next")
+                    if tgt and tgt not in node_by_id:
+                        issues.append(
+                            {
+                                "level": "error",
+                                "node_id": nid,
+                                "code": "dangling_button",
+                                "message": f"Кнопка ведёт на «{tgt}», которого нет",
+                            }
+                        )
 
     # Достижимость от триггеров
     reachable: set[str] = set()
@@ -172,9 +177,19 @@ def validate_graph(graph: dict[str, Any]) -> list[Issue]:
             continue
         if n.get("next"):
             stack.append(n["next"])
-        for b in (n.get("params") or {}).get("buttons") or []:
-            if isinstance(b, dict) and b.get("target"):
-                stack.append(b["target"])
+        for entry in (n.get("params") or {}).get("buttons") or []:
+            row = entry if isinstance(entry, list) else [entry]
+            for b in row:
+                if isinstance(b, dict):
+                    t = b.get("target") or b.get("next")
+                    if t:
+                        stack.append(t)
+        # branch: true_next / false_next
+        if n.get("type") == "branch":
+            for k in ("true_next", "false_next"):
+                t = (n.get("params") or {}).get(k)
+                if t:
+                    stack.append(t)
 
     for nid in node_by_id:
         n = node_by_id[nid]
