@@ -3,12 +3,15 @@ import { Pencil, Plus, Trash, UploadSimple, X } from "@phosphor-icons/react";
 import {
   deleteOutfit,
   deleteOutfitImage,
+  listCategories,
   listOutfits,
   outfitImageUrl,
   uploadOutfitImage,
   upsertOutfit,
+  type OutfitCategory,
 } from "@/lib/api";
 import { TextArea, TextField, Switch } from "@/components/Field";
+import TagPicker from "@/components/TagPicker";
 import MamaLayout from "./Layout";
 import type { Outfit, OutfitImage } from "@/types";
 
@@ -19,6 +22,11 @@ export default function Outfits() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<OutfitWithImages | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<OutfitCategory[]>([]);
+
+  useEffect(() => {
+    listCategories().then(setCategories).catch(() => setCategories([]));
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -57,11 +65,13 @@ export default function Outfits() {
     }
   }
 
-  async function uploadImage(outfitId: number, file: File) {
+  async function uploadImages(outfitId: number, files: FileList | File[]) {
+    setError(null);
     try {
-      await uploadOutfitImage(outfitId, file);
+      for (const f of Array.from(files)) {
+        await uploadOutfitImage(outfitId, f);
+      }
       await load();
-      // Re-open the same outfit with refreshed images.
       const fresh = (await listOutfits()).find((o) => o.id === outfitId);
       if (fresh) setEditing(fresh);
     } catch (err) {
@@ -88,9 +98,10 @@ export default function Outfits() {
       <MamaLayout>
         <OutfitForm
           initial={editing}
+          categories={categories}
           onSave={save}
           onCancel={() => setEditing(null)}
-          onUploadImage={uploadImage}
+          onUploadImages={uploadImages}
           onRemoveImage={removeImage}
           error={error}
         />
@@ -183,16 +194,18 @@ export default function Outfits() {
 
 function OutfitForm({
   initial,
+  categories,
   onSave,
   onCancel,
-  onUploadImage,
+  onUploadImages,
   onRemoveImage,
   error,
 }: {
   initial: OutfitWithImages;
+  categories: OutfitCategory[];
   onSave: (o: Partial<Outfit>) => Promise<void>;
   onCancel: () => void;
-  onUploadImage: (id: number, f: File) => Promise<void>;
+  onUploadImages: (id: number, files: FileList | File[]) => Promise<void>;
   onRemoveImage: (img: OutfitImage) => Promise<void>;
   error?: string | null;
 }) {
@@ -213,14 +226,14 @@ function OutfitForm({
         value={form.description || ""}
         onChange={(e) => patch("description", e.target.value)}
       />
-      <div className="grid grid-cols-2 gap-2">
-        <TextField label="Цвета (через ,)" value={form.colors} onChange={(e) => patch("colors", e.target.value)} />
-        <TextField label="Стили (через ,)" value={form.styles} onChange={(e) => patch("styles", e.target.value)} />
-        <TextField label="Сезоны (через ,)" value={form.seasons} onChange={(e) => patch("seasons", e.target.value)} />
-        <TextField label="Поводы (через ,)" value={form.occasions} onChange={(e) => patch("occasions", e.target.value)} />
-        <TextField label="Фигура (через ,)" value={form.body_types} onChange={(e) => patch("body_types", e.target.value)} />
-        <TextField label="Бюджет (через ,)" value={form.budgets} onChange={(e) => patch("budgets", e.target.value)} />
-        <TextField label="Тип съёмки (через ,)" value={form.shoot_types} onChange={(e) => patch("shoot_types", e.target.value)} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <TagPicker label="Цвета"      kind="colors"      value={form.colors}      options={categories} onChange={(v) => patch("colors", v)} />
+        <TagPicker label="Стили"      kind="styles"      value={form.styles}      options={categories} onChange={(v) => patch("styles", v)} />
+        <TagPicker label="Сезоны"     kind="seasons"     value={form.seasons}     options={categories} onChange={(v) => patch("seasons", v)} />
+        <TagPicker label="Поводы"     kind="occasions"   value={form.occasions}   options={categories} onChange={(v) => patch("occasions", v)} />
+        <TagPicker label="Фигура"     kind="body_types"  value={form.body_types}  options={categories} onChange={(v) => patch("body_types", v)} />
+        <TagPicker label="Бюджет"     kind="budgets"     value={form.budgets}     options={categories} onChange={(v) => patch("budgets", v)} />
+        <TagPicker label="Тип съёмки" kind="shoot_types" value={form.shoot_types} options={categories} onChange={(v) => patch("shoot_types", v)} />
         <TextField label="Цена (текст)" value={form.price_hint || ""} onChange={(e) => patch("price_hint", e.target.value)} />
       </div>
       <TextField
@@ -263,19 +276,9 @@ function OutfitForm({
               <p className="text-xs text-muted">пока пусто</p>
             )}
           </div>
-          <label className="btn-outline cursor-pointer">
-            <UploadSimple size={14} weight="thin" /> Загрузить картинку
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void onUploadImage(form.id, f);
-                e.target.value = "";
-              }}
-            />
-          </label>
+          <DropZone
+            onFiles={(files) => void onUploadImages(form.id, files)}
+          />
         </div>
       )}
 
@@ -292,3 +295,40 @@ function OutfitForm({
     </div>
   );
 }
+
+function DropZone({ onFiles }: { onFiles: (files: FileList | File[]) => void }) {
+  const [over, setOver] = useState(false);
+  return (
+    <label
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files);
+      }}
+      className={
+        "block cursor-pointer border-2 border-dashed rounded-md p-6 text-center text-sm transition-colors " +
+        (over ? "border-ink bg-paper" : "border-line text-muted hover:border-ink hover:text-ink")
+      }
+    >
+      <UploadSimple size={20} weight="thin" className="inline mr-1" />
+      Перетащи сюда фото или нажми, чтобы выбрать (можно несколько)
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const fs = e.target.files;
+          if (fs && fs.length) onFiles(fs);
+          e.target.value = "";
+        }}
+      />
+    </label>
+  );
+}
+

@@ -193,10 +193,14 @@ export async function uploadOutfitImage(
   file: File,
 ): Promise<OutfitImage> {
   const client = getSupabase("mama");
-  const path = `${outfitId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+  // Жмём на клиенте до 1600px / JPEG q85 — экономим storage и трафик в Telegram
+  const blob = await compressImage(file);
+  const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.[^.]+$/, "");
+  const ext = blob.type === "image/jpeg" ? "jpg" : (file.name.split(".").pop() || "bin");
+  const path = `${outfitId}/${Date.now()}-${safeName}.${ext}`;
   const { error: upErr } = await client.storage
     .from("outfit-images")
-    .upload(path, file, { upsert: false, contentType: file.type });
+    .upload(path, blob, { upsert: false, contentType: blob.type || file.type });
   if (upErr) throw upErr;
   const { data, error } = await client
     .from("outfit_images")
@@ -356,3 +360,110 @@ export async function statsEvents(role: Role): Promise<Record<string, number>> {
   }
   return counts;
 }
+
+// ---------- Outfit categories (admin manages, mama reads) ----------
+
+export type CategoryKind =
+  | "colors"
+  | "styles"
+  | "seasons"
+  | "occasions"
+  | "body_types"
+  | "budgets"
+  | "shoot_types";
+
+export const CATEGORY_KINDS: { kind: CategoryKind; label: string }[] = [
+  { kind: "colors",      label: "Цвета" },
+  { kind: "styles",      label: "Стили" },
+  { kind: "seasons",     label: "Сезоны" },
+  { kind: "occasions",   label: "Поводы" },
+  { kind: "body_types",  label: "Фигура" },
+  { kind: "budgets",     label: "Бюджет" },
+  { kind: "shoot_types", label: "Тип съёмки" },
+];
+
+export interface OutfitCategory {
+  id: number;
+  kind: CategoryKind;
+  value: string;
+  sort_order: number;
+}
+
+export async function listCategories(): Promise<OutfitCategory[]> {
+  // публичное чтение — anonSupabase, чтобы и /admin, и /mama его могли вызвать
+  const { data, error } = await anonSupabase
+    .from("outfit_categories")
+    .select("*")
+    .order("kind", { ascending: true })
+    .order("sort_order", { ascending: true })
+    .order("value", { ascending: true });
+  if (error) throw error;
+  return (data as OutfitCategory[]) ?? [];
+}
+
+export async function addCategory(
+  kind: CategoryKind,
+  value: string,
+): Promise<OutfitCategory> {
+  const v = value.trim();
+  if (!v) throw new Error("Пустое значение");
+  const { data, error } = await getSupabase("admin")
+    .from("outfit_categories")
+    .insert({ kind, value: v })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as OutfitCategory;
+}
+
+export async function deleteCategory(id: number): Promise<void> {
+  const { error } = await getSupabase("admin")
+    .from("outfit_categories")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function reorderCategory(
+  id: number,
+  sort_order: number,
+): Promise<void> {
+  const { error } = await getSupabase("admin")
+    .from("outfit_categories")
+    .update({ sort_order })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// ---------- Image helpers ----------
+
+/**
+ * Жмёт картинку клиентом до max-стороны 1600px и качества ~0.85.
+ * Возвращает Blob (JPEG). Использует <canvas>, без зависимостей.
+ * Если бразуер старый и не умеет — возвращает исходный File без изменений.
+ */
+export async function compressImage(file: File, maxSide = 1600): Promise<Blob> {
+  try {
+    if (!file.type.startsWith("image/")) return file;
+    if (file.size < 300_000) return file; // < 300кб — нет смысла жать
+    const bmp = await createImageBitmap(file);
+    let { width, height } = bmp;
+    if (Math.max(width, height) > maxSide) {
+      const k = maxSide / Math.max(width, height);
+      width = Math.round(width * k);
+      height = Math.round(height * k);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bmp, 0, 0, width, height);
+    return await new Promise<Blob>((resolve) =>
+      canvas.toBlob((b) => resolve(b || file), "image/jpeg", 0.85),
+    );
+  } catch {
+    return file;
+  }
+}
+

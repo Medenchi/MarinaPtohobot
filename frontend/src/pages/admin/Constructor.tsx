@@ -10,8 +10,12 @@ import {
   Plus,
   Trash,
   Sparkle,
+  BookOpen,
+  StackPlus,
 } from "@phosphor-icons/react";
 import GraphCanvas from "@/components/GraphCanvas";
+import VarsPanel from "@/components/VarsPanel";
+import { BLOCK_TEMPLATES, TEMPLATE_GROUPS } from "@/lib/blockTemplates";
 import { validateGraph, summary as validatorSummary, type Issue } from "@/lib/validator";
 import {
   getFlow,
@@ -45,6 +49,8 @@ export default function Constructor() {
     () => (localStorage.getItem("marina:cons-view") as "list" | "canvas") || "canvas",
   );
   useEffect(() => localStorage.setItem("marina:cons-view", view), [view]);
+  const [varsOpen, setVarsOpen] = useState(false);
+  const [tplOpen, setTplOpen] = useState(false);
 
   useEffect(() => {
     getFlow(id)
@@ -91,7 +97,36 @@ export default function Constructor() {
     setDirty(true);
   }
 
-  function addNode(type: string) {
+  function addTemplate(tplId: string) {
+    const tpl = BLOCK_TEMPLATES.find((t) => t.id === tplId);
+    if (!tpl) return;
+    const existing = new Set(flow?.graph.nodes.map((n) => n.id) || []);
+    const genId = (prefix: string) => {
+      let i = 1;
+      let id = `${prefix}_${i}`;
+      while (existing.has(id)) {
+        i += 1;
+        id = `${prefix}_${i}`;
+      }
+      existing.add(id);
+      return id;
+    };
+    const nodes = tpl.build(genId);
+    // Раскладка: ставим в правую часть от существующих, столбиком
+    const maxX = flow?.graph.nodes.reduce(
+      (m, n) => Math.max(m, n.position?.x ?? 0), 0,
+    ) || 0;
+    const baseX = maxX + 280;
+    const positioned = nodes.map((n, i) => ({
+      ...n,
+      position: n.position || { x: baseX, y: 80 + i * 140 },
+    }));
+    mutate((g) => ({ ...g, nodes: [...g.nodes, ...positioned] }));
+    setSelectedId(positioned[0]?.id || null);
+    setTplOpen(false);
+  }
+
+    function addNode(type: string) {
     const newId = shortId(type.replace(/_/g, ""));
     const node: BlockNode = { id: newId, type, params: {}, next: null };
     mutate((g) => ({ ...g, nodes: [...g.nodes, node] }));
@@ -254,6 +289,20 @@ export default function Constructor() {
               <TreeStructure size={12} weight="thin" /> Карта
             </button>
           </div>
+          <button
+            onClick={() => setTplOpen((v) => !v)}
+            className="btn-outline px-3 py-1.5 text-xs"
+            title="Готовые блоки для флоу Марины"
+          >
+            <StackPlus size={14} weight="thin" /> Шаблоны
+          </button>
+          <button
+            onClick={() => setVarsOpen((v) => !v)}
+            className="btn-outline px-3 py-1.5 text-xs"
+            title="Все переменные с описаниями"
+          >
+            <BookOpen size={14} weight="thin" /> Переменные
+          </button>
           <button onClick={() => void persist()} className="btn-outline px-3 py-1.5 text-xs">
             <FloppyDisk size={14} weight="thin" /> Сохранить
           </button>
@@ -422,7 +471,59 @@ export default function Constructor() {
       </main>
 
       <Footer />
+      <VarsPanel graph={flow.graph} open={varsOpen} onClose={() => setVarsOpen(false)} />
+      {tplOpen && (
+        <TemplatesDrawer
+          onClose={() => setTplOpen(false)}
+          onPick={addTemplate}
+        />
+      )}
     </div>
+  );
+}
+
+function TemplatesDrawer({
+  onClose,
+  onPick,
+}: {
+  onClose: () => void;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <aside className="fixed inset-y-0 right-0 w-[420px] max-w-[95vw] bg-white border-l border-line shadow-xl z-40 flex flex-col">
+      <header className="flex items-center justify-between px-4 py-3 border-b border-line">
+        <h2 className="serif-heading text-lg">Готовые блоки</h2>
+        <button onClick={onClose} className="text-muted hover:text-ink text-xs">
+          закрыть
+        </button>
+      </header>
+      <div className="flex-1 overflow-auto p-4 space-y-4 text-sm">
+        <p className="text-xs text-muted">
+          Клик по шаблону вставит готовые узлы в правую часть карты — останется
+          только перетянуть стрелочку из предыдущего блока к первому новому.
+        </p>
+        {TEMPLATE_GROUPS.map((g) => (
+          <section key={g.id}>
+            <h3 className="text-[10px] uppercase tracking-tighter text-muted mb-2">
+              {g.title}
+            </h3>
+            <ul className="space-y-1.5">
+              {BLOCK_TEMPLATES.filter((t) => t.group === g.id).map((t) => (
+                <li key={t.id}>
+                  <button
+                    onClick={() => onPick(t.id)}
+                    className="w-full text-left card hover:border-ink"
+                  >
+                    <div className="font-medium">{t.title}</div>
+                    <div className="text-xs text-muted mt-0.5">{t.description}</div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </aside>
   );
 }
 
