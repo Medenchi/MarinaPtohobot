@@ -5,9 +5,14 @@ import {
   CheckCircle,
   Eye,
   FloppyDisk,
+  TreeStructure,
+  ListBullets,
   Plus,
   Trash,
+  Sparkle,
 } from "@phosphor-icons/react";
+import GraphCanvas from "@/components/GraphCanvas";
+import { validateGraph, summary as validatorSummary, type Issue } from "@/lib/validator";
 import {
   getFlow,
   previewFlow,
@@ -36,6 +41,10 @@ export default function Constructor() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "canvas">(
+    () => (localStorage.getItem("marina:cons-view") as "list" | "canvas") || "canvas",
+  );
+  useEffect(() => localStorage.setItem("marina:cons-view", view), [view]);
 
   useEffect(() => {
     getFlow(id)
@@ -195,6 +204,9 @@ export default function Constructor() {
     return <div className="min-h-screen flex items-center justify-center text-sm text-muted">Загрузка…</div>;
   }
 
+  const issues: Issue[] = useMemo(() => validateGraph(flow.graph), [flow.graph]);
+  const issueSummary = validatorSummary(issues);
+
   const selected = flow.graph.nodes.find((n) => n.id === selectedId) || null;
 
   return (
@@ -215,6 +227,27 @@ export default function Constructor() {
           <span className="text-xs text-muted">
             {saving ? "сохранение…" : dirty ? "не сохранено" : savedAt ? `сохранено ${savedAt.toLocaleTimeString()}` : `v${flow.version}`}
           </span>
+          <div className="flex items-center gap-1 text-[11px] mr-1">
+            <span title="Ошибки" className={issueSummary.error ? "text-red-600 font-medium" : "text-muted"}>❗{issueSummary.error}</span>
+            <span title="Предупреждения" className={issueSummary.warning ? "text-amber-600 font-medium" : "text-muted"}>⚠{issueSummary.warning}</span>
+            <span title="Подсказки" className="text-muted">💡{issueSummary.hint}</span>
+          </div>
+          <div className="inline-flex rounded-md border border-line overflow-hidden text-xs">
+            <button
+              onClick={() => setView("list")}
+              className={view === "list" ? "bg-ink text-white px-2 py-1" : "px-2 py-1"}
+              title="Список"
+            >
+              <ListBullets size={12} weight="thin" /> Список
+            </button>
+            <button
+              onClick={() => setView("canvas")}
+              className={view === "canvas" ? "bg-ink text-white px-2 py-1" : "px-2 py-1"}
+              title="Карта"
+            >
+              <TreeStructure size={12} weight="thin" /> Карта
+            </button>
+          </div>
           <button onClick={() => void persist()} className="btn-outline px-3 py-1.5 text-xs">
             <FloppyDisk size={14} weight="thin" /> Сохранить
           </button>
@@ -267,8 +300,37 @@ export default function Constructor() {
             }}
             rows={2}
           />
-          <h2 className="text-xs uppercase tracking-tighter text-muted mt-4 mb-2">Блоки</h2>
-          {flow.graph.nodes.length === 0 ? (
+          <h2 className="text-xs uppercase tracking-tighter text-muted mt-4 mb-2 flex items-center justify-between">
+            <span>Блоки</span>
+            {issues.length > 0 && (
+              <details className="text-[11px] font-normal normal-case tracking-normal">
+                <summary className="cursor-pointer text-muted hover:text-ink">
+                  <Sparkle size={12} weight="thin" className="inline" /> AI-проверка ({issues.length})
+                </summary>
+                <ul className="mt-2 space-y-1 max-h-40 overflow-auto bg-paper border border-line rounded p-2">
+                  {issues.map((it, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span>
+                        {it.level === "error" ? "❗" : it.level === "warning" ? "⚠" : "💡"}
+                      </span>
+                      <span className="font-mono text-[10px]">{it.node_id || "-"}</span>
+                      <span className="flex-1">{it.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </h2>
+          {view === "canvas" ? (
+            <GraphCanvas
+              graph={flow.graph}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onChange={(g) => mutate(() => g)}
+              onRemove={removeNode}
+              issues={issues}
+            />
+          ) : flow.graph.nodes.length === 0 ? (
             <p className="card text-sm text-muted">
               Добавь первый блок слева. Обычно начинают с триггера «Команда» (например /start) и
               ведут стрелочками к следующему.
@@ -335,7 +397,8 @@ export default function Constructor() {
                 );
               })}
             </ol>
-          )}
+          )
+          }
         </section>
 
         <aside>

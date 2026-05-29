@@ -2,17 +2,25 @@
 
 One row per Telegram user in ``bot_sessions``. The engine loads it at the start
 of every update and persists it at the end.
+
+Robustness: если flow_id, хранящийся в сессии, уже удалён из ``bot_flows``,
+Postgres возвращает ``23503`` (FK violation). Мы перехватываем эту ошибку,
+сбрасываем ``flow_id`` в ``NULL`` и инвалидируем кеш реестра, чтобы бот сам
+перетянул актуальный published-флоу при следующем апдейте.
 """
 
 from __future__ import annotations
 
 import contextlib
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from aiogram.types import User as TgUser
 
 from app.core.supabase import get_supabase
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -49,9 +57,42 @@ def load(telegram_id: int) -> Session:
     )
 
 
+def _is_fk_violation(exc: Exception, constraint_hint: str = "bot_sessions_flow_id_fkey") -> bool:
+    # postgrest.exceptions.APIError exposes .code / .message; supabase-py wraps it.
+    code = getattr(exc, "code", None) or ""
+    msg = (getattr(exc, "message", "") or "") + " " + str(exc)
+    return code == "23503" or "23503" in msg or constraint_hint in msg
+
+
 def save(session: Session) -> None:
+    """Upsert the session, healing stale ``flow_id`` references on the fly."""
     sb = get_supabase()
-    sb.table("bot_sessions").upsert(session.to_row(), on_conflict="telegram_id").execute()
+    try:
+        sb.table("bot_sessions").upsert(
+            session.to_row(), on_conflict="telegram_id",
+        ).execute()
+    except Exception as exc:
+        if not _is_fk_violation(exc):
+            raise
+        # Stale published-flow id (was deleted from bot_flows). Reset & retry.
+        log.warning(
+            "bot_sessions FK violation for tg=%s flow=%s — clearing flow_id and retrying",
+            session.telegram_id,
+            session.flow_id,
+        )
+        # Tell the registry cache it's lying.
+        try:
+            from app.bot.runtime import registry  # local import to avoid cycle
+            registry.invalidate()
+        except Exception:
+            log.exception("Failed to invalidate registry cache")
+        session.flow_id = None
+        session.current_node_id = None
+        session.awaiting_input = False
+        # Retry once. If it still fails — let it bubble; better to see it.
+        sb.table("bot_sessions").upsert(
+            session.to_row(), on_conflict="telegram_id",
+        ).execute()
 
 
 def clear(telegram_id: int) -> None:

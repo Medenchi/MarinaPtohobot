@@ -9,6 +9,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from app.bot.runtime.engine import make_router
+from app.bot.runtime.mini_constructor import make_router as make_mini_router
 from app.core.config import settings
 
 log = logging.getLogger(__name__)
@@ -23,6 +24,8 @@ def build_bot() -> Bot:
 
 def build_dispatcher() -> Dispatcher:
     dp = Dispatcher()
+    # Сначала владельческие /builder-команды — потом основной runtime
+    dp.include_router(make_mini_router())
     dp.include_router(make_router())
     return dp
 
