@@ -277,3 +277,67 @@
    в Telegram владельцу).
 5. Финальный `send_message` с благодарностью и `next: null`.
 6. Никаких висящих `next` — прогоняй валидатор.
+
+---
+
+## 8. Готовые шаблоны (`blockTemplates.ts`)
+
+В конструкторе кнопка **🧠 Шаблоны** → панель из 12 готовых под-графов
+под флоу Марины. Клик и нужные узлы появляются справа от твоего графа
+с уникальными id (`ask_occasion_1`, `pdf_outfits_1` и т.д.) — останется
+только перетянуть стрелку из своего блока к первому новому.
+
+| Группа | Шаблон | Что внутри |
+|---|---|---|
+| Поводы съёмок | `occasion_picker` | `ask_question` с 7 поводами Марины (love-story, семейная, беременность, индивидуальная, lookbook, контент, репортаж) |
+| Образы | `outfits_by_occasion_pack` | `ask_question` повод → `db_query outfits filter occasions ilike '%{{vars.occasion}}%'` → `send_album` |
+| Образы | `outfits_pdf_pack` | `generate_pdf` из `matched_outfits` с водяным знаком |
+| Курсы | `courses_list_pack` | `db_query` published-курсов → `send_message` со ссылкой на каталог |
+| Пакеты | `package_express` | Карточка «Экспресс — 15 000 ₽» |
+| Пакеты | `package_light` | «Лайт — 25 000 ₽» |
+| Пакеты | `package_comfort` | «Комфорт — 35 000 ₽» |
+| Пакеты | `package_turnkey` | «Под ключ — 115 000 ₽» |
+| Пакеты | `package_reportage` | «Репортаж — от 8 000 ₽/час» |
+| Пакеты | `packages_menu` | Меню всех 5 пакетов: одно сообщение с кнопками + 5 раскрывающихся карточек с кнопкой «← к пакетам» |
+| Контакты | `contacts_card` | Карточка контактов Марины (тел, e-mail, ИНН) |
+| Контакты | `preparation_stages` | Этапы подготовки: бриф → локация → образы → напоминание |
+| Контакты | `important_terms` | Бронь, ретушь, исходники, формат — текст из брифа |
+
+Все тексты дословно из брифа Марины. Если нужно поправить — открой файл
+`frontend/src/lib/blockTemplates.ts` и измени там.
+
+---
+
+## 9. Категории образов (`outfit_categories`)
+
+Эти **тэги** — то, что Марина видит в чипсах при редактировании образа.
+Управляются админом в `/admin/categories`. Хранятся в таблице
+`outfit_categories(kind, value, sort_order)`, RLS — public read /
+admin write.
+
+`kind` — один из:
+`colors`, `styles`, `seasons`, `occasions`, `body_types`, `budgets`,
+`shoot_types`.
+
+В образах эти теги по-прежнему лежат в текстовых колонках
+`outfits.colors/styles/...` через запятую — никаких миграций существующих
+данных не нужно.
+
+В `db_query` фильтрах удобно использовать оператор `ilike`:
+
+```jsonc
+{
+  "type": "db_query",
+  "params": {
+    "table": "outfits",
+    "select": "*, outfit_images(*)",
+    "filters": [
+      { "column": "occasions", "op": "ilike", "value": "%{{vars.occasion}}%" },
+      { "column": "is_published", "op": "eq", "value": "true" }
+    ],
+    "order_by": "sort_order",
+    "limit": 10,
+    "save_to": "matched_outfits"
+  }
+}
+```
