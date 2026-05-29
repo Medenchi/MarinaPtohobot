@@ -69,7 +69,8 @@ def save(session: Session) -> None:
     sb = get_supabase()
     try:
         sb.table("bot_sessions").upsert(
-            session.to_row(), on_conflict="telegram_id",
+            session.to_row(),
+            on_conflict="telegram_id",
         ).execute()
     except Exception as exc:
         if not _is_fk_violation(exc):
@@ -83,6 +84,7 @@ def save(session: Session) -> None:
         # Tell the registry cache it's lying.
         try:
             from app.bot.runtime import registry  # local import to avoid cycle
+
             registry.invalidate()
         except Exception:
             log.exception("Failed to invalidate registry cache")
@@ -91,7 +93,8 @@ def save(session: Session) -> None:
         session.awaiting_input = False
         # Retry once. If it still fails — let it bubble; better to see it.
         sb.table("bot_sessions").upsert(
-            session.to_row(), on_conflict="telegram_id",
+            session.to_row(),
+            on_conflict="telegram_id",
         ).execute()
 
 

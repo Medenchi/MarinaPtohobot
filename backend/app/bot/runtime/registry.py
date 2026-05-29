@@ -61,13 +61,7 @@ def flow_exists(flow_id: str) -> bool:
         return False
     sb = get_supabase()
     try:
-        resp = (
-            sb.table("bot_flows")
-            .select("id")
-            .eq("id", flow_id)
-            .limit(1)
-            .execute()
-        )
+        resp = sb.table("bot_flows").select("id").eq("id", flow_id).limit(1).execute()
         return bool(resp.data)
     except Exception:
         log.exception("flow_exists check failed for %s", flow_id)
