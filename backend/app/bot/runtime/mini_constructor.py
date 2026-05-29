@@ -45,8 +45,7 @@ def _is_owner(uid: int | None) -> bool:
 def _kb(rows: list[list[tuple[str, str]]]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=t, callback_data=d) for t, d in row]
-            for row in rows
+            [InlineKeyboardButton(text=t, callback_data=d) for t, d in row] for row in rows
         ]
     )
 
@@ -54,25 +53,29 @@ def _kb(rows: list[list[tuple[str, str]]]) -> InlineKeyboardMarkup:
 async def _send_main_menu(message: Message) -> None:
     flows = _list_flows()
     text = "🛠 *Мини-конструктор*\n\nВыбери действие или флоу:\n\n"
-    text += "\n".join(
-        f"{'⭐' if f['is_published'] else '·'} *{f['name']}* — v{f['version']}"
-        for f in flows[:10]
-    ) or "_нет флоу_"
+    text += (
+        "\n".join(
+            f"{'⭐' if f['is_published'] else '·'} *{f['name']}* — v{f['version']}"
+            for f in flows[:10]
+        )
+        or "_нет флоу_"
+    )
     rows: list[list[tuple[str, str]]] = []
     for f in flows[:8]:
         rows.append([(f["name"][:32], f"{CB_PREFIX}open:{f['id']}")])
-    rows.append([("➕ Новый флоу", f"{CB_PREFIX}new"),
-                 ("🔄 Обновить", f"{CB_PREFIX}root")])
+    rows.append([("➕ Новый флоу", f"{CB_PREFIX}new"), ("🔄 Обновить", f"{CB_PREFIX}root")])
     await message.answer(text, reply_markup=_kb(rows), parse_mode="Markdown")
 
 
 def _list_flows() -> list[dict[str, Any]]:
     sb = get_supabase()
-    r = (sb.table("bot_flows")
-           .select("id, name, version, is_published, updated_at, graph")
-           .order("updated_at", desc=True)
-           .limit(20)
-           .execute())
+    r = (
+        sb.table("bot_flows")
+        .select("id, name, version, is_published, updated_at, graph")
+        .order("updated_at", desc=True)
+        .limit(20)
+        .execute()
+    )
     return r.data or []
 
 
@@ -96,8 +99,7 @@ def _format_flow(flow: dict[str, Any]) -> str:
     lines = [
         f"📋 *{flow['name']}*",
         f"_v{flow['version']} • {'опубликован ⭐' if flow['is_published'] else 'черновик'}_",
-        f"Узлов: {len(nodes)}  ·  "
-        f"❗ {summ['error']}  ⚠ {summ['warning']}  💡 {summ['hint']}",
+        f"Узлов: {len(nodes)}  ·  ❗ {summ['error']}  ⚠ {summ['warning']}  💡 {summ['hint']}",
         "",
         "*Блоки:*",
     ]
@@ -119,12 +121,16 @@ def _format_flow(flow: dict[str, Any]) -> str:
 
 def _flow_kb(fid: str, published: bool) -> InlineKeyboardMarkup:
     rows: list[list[tuple[str, str]]] = [
-        [("➕ Сообщение", f"{CB_PREFIX}add:{fid}:send_message"),
-         ("❓ Вопрос", f"{CB_PREFIX}add:{fid}:ask_question")],
-        [("🧠 AI-проверка", f"{CB_PREFIX}lint:{fid}"),
-         ("👁 Превью", f"{CB_PREFIX}prev:{fid}")],
-        [("⭐ Опубликовать", f"{CB_PREFIX}pub:{fid}") if not published
-         else ("⏸ Снять с публикации", f"{CB_PREFIX}unpub:{fid}")],
+        [
+            ("➕ Сообщение", f"{CB_PREFIX}add:{fid}:send_message"),
+            ("❓ Вопрос", f"{CB_PREFIX}add:{fid}:ask_question"),
+        ],
+        [("🧠 AI-проверка", f"{CB_PREFIX}lint:{fid}"), ("👁 Превью", f"{CB_PREFIX}prev:{fid}")],
+        [
+            ("⭐ Опубликовать", f"{CB_PREFIX}pub:{fid}")
+            if not published
+            else ("⏸ Снять с публикации", f"{CB_PREFIX}unpub:{fid}")
+        ],
         [("⬅ Назад", f"{CB_PREFIX}root")],
     ]
     return _kb(rows)
@@ -144,7 +150,7 @@ def make_router() -> Router:
         if not _is_owner(cq.from_user.id if cq.from_user else None):
             await cq.answer("Доступ только владельцу", show_alert=True)
             return
-        data = (cq.data or "")[len(CB_PREFIX):]
+        data = (cq.data or "")[len(CB_PREFIX) :]
         parts = data.split(":")
         action = parts[0]
         try:
@@ -164,10 +170,12 @@ async def _dispatch(cq: CallbackQuery, action: str, args: list[str]) -> None:
         return
     if action == "new":
         sb = get_supabase()
-        sb.table("bot_flows").insert({
-            "name": "Новый флоу (из бота)",
-            "graph": {"nodes": [], "edges": []},
-        }).execute()
+        sb.table("bot_flows").insert(
+            {
+                "name": "Новый флоу (из бота)",
+                "graph": {"nodes": [], "edges": []},
+            }
+        ).execute()
         await cq.answer("Создан")
         await cq.message.delete()  # type: ignore[union-attr]
         await _send_main_menu(cq.message)  # type: ignore[arg-type]
@@ -224,11 +232,13 @@ async def _dispatch(cq: CallbackQuery, action: str, args: list[str]) -> None:
         return
     if action == "prev":
         sb = get_supabase()
-        sb.table("bot_preview_requests").insert({
-            "flow_id": args[0],
-            "telegram_id": cq.from_user.id,
-            "status": "pending",
-        }).execute()
+        sb.table("bot_preview_requests").insert(
+            {
+                "flow_id": args[0],
+                "telegram_id": cq.from_user.id,
+                "status": "pending",
+            }
+        ).execute()
         await cq.answer("Превью поставлено в очередь")
         return
     if action == "add":
@@ -239,12 +249,19 @@ async def _dispatch(cq: CallbackQuery, action: str, args: list[str]) -> None:
         nodes = (flow.get("graph") or {}).get("nodes") or []
         new_id = f"{block_type}_{len(nodes) + 1}"
         if block_type == "send_message":
-            new_node = {"id": new_id, "type": "send_message",
-                        "params": {"text": "Новое сообщение"}, "next": None}
+            new_node = {
+                "id": new_id,
+                "type": "send_message",
+                "params": {"text": "Новое сообщение"},
+                "next": None,
+            }
         else:
-            new_node = {"id": new_id, "type": "ask_question",
-                        "params": {"text": "Новый вопрос?", "variable": "answer"},
-                        "next": None}
+            new_node = {
+                "id": new_id,
+                "type": "ask_question",
+                "params": {"text": "Новый вопрос?", "variable": "answer"},
+                "next": None,
+            }
         graph = flow.get("graph") or {"nodes": [], "edges": []}
         graph.setdefault("nodes", []).append(new_node)
         # связать с последним
