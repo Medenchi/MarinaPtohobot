@@ -10,13 +10,14 @@
 * запустить превью у себя;
 * прогнать AI-валидатор и получить отчёт.
 
-Это именно «мини» — для полноценной правки графа есть веб-конструктор.
-Но базовое управление прямо из телеги полезно: пришёл feedback от Марины —
-сразу поправил без открытия ноутбука.
+Сообщения форматируются HTML (а не Markdown), потому что Markdown ломается
+на любом спецсимволе underscore/star/backtick, который встречается в id/имени/тексте флоу.
 """
 
 from __future__ import annotations
 
+import contextlib
+import html
 import logging
 from typing import Any
 
@@ -37,6 +38,8 @@ log = logging.getLogger(__name__)
 
 CB_PREFIX = "mc:"
 
+LEVEL_EMOJI = {"error": "❗", "warning": "⚠", "hint": "💡"}
+
 
 def _is_owner(uid: int | None) -> bool:
     return bool(uid and settings.bot_owner_telegram_id and uid == settings.bot_owner_telegram_id)
@@ -50,21 +53,25 @@ def _kb(rows: list[list[tuple[str, str]]]) -> InlineKeyboardMarkup:
     )
 
 
+def _esc(s: Any) -> str:
+    """HTML-escape for safe rendering inside <b>/<code>/etc."""
+    return html.escape(str(s if s is not None else ""), quote=False)
+
+
 async def _send_main_menu(message: Message) -> None:
     flows = _list_flows()
-    text = "🛠 *Мини-конструктор*\n\nВыбери действие или флоу:\n\n"
-    text += (
-        "\n".join(
-            f"{'⭐' if f['is_published'] else '·'} *{f['name']}* — v{f['version']}"
-            for f in flows[:10]
-        )
-        or "_нет флоу_"
-    )
+    lines = ["🛠 <b>Мини-конструктор</b>", "", "Выбери действие или флоу:", ""]
+    if flows:
+        for f in flows[:10]:
+            star = "⭐" if f["is_published"] else "·"
+            lines.append(f"{star} <b>{_esc(f['name'])}</b> — v{_esc(f.get('version', 0))}")
+    else:
+        lines.append("<i>нет флоу</i>")
     rows: list[list[tuple[str, str]]] = []
     for f in flows[:8]:
         rows.append([(f["name"][:32], f"{CB_PREFIX}open:{f['id']}")])
     rows.append([("➕ Новый флоу", f"{CB_PREFIX}new"), ("🔄 Обновить", f"{CB_PREFIX}root")])
-    await message.answer(text, reply_markup=_kb(rows), parse_mode="Markdown")
+    await message.answer("\n".join(lines), reply_markup=_kb(rows), parse_mode="HTML")
 
 
 def _list_flows() -> list[dict[str, Any]]:
@@ -96,26 +103,40 @@ def _format_flow(flow: dict[str, Any]) -> str:
     nodes = graph.get("nodes") or []
     issues = validator.validate_graph(graph)
     summ = validator.summary(issues)
+    pub = "опубликован ⭐" if flow.get("is_published") else "черновик"
     lines = [
-        f"📋 *{flow['name']}*",
-        f"_v{flow['version']} • {'опубликован ⭐' if flow['is_published'] else 'черновик'}_",
+        f"📋 <b>{_esc(flow.get('name'))}</b>",
+        f"<i>v{_esc(flow.get('version', 0))} • {pub}</i>",
         f"Узлов: {len(nodes)}  ·  ❗ {summ['error']}  ⚠ {summ['warning']}  💡 {summ['hint']}",
         "",
-        "*Блоки:*",
+        "<b>Блоки:</b>",
     ]
     for i, n in enumerate(nodes[:20], 1):
         params = n.get("params") or {}
-        title = params.get("text") or params.get("command") or params.get("variable") or ""
+        title = (
+            params.get("text")
+            or params.get("command")
+            or params.get("variable")
+            or params.get("pattern")
+            or ""
+        )
         title = str(title).replace("\n", " ")[:48]
-        arrow = f" → `{n.get('next')}`" if n.get("next") else ""
-        lines.append(f"{i}. `{n.get('id')}` _{n.get('type')}_ {title}{arrow}")
+        nxt = n.get("next")
+        arrow = f" → <code>{_esc(nxt)}</code>" if nxt else ""
+        lines.append(
+            f"{i}. <code>{_esc(n.get('id'))}</code> "
+            f"<i>{_esc(n.get('type'))}</i> {_esc(title)}{arrow}"
+        )
     if len(nodes) > 20:
         lines.append(f"…ещё {len(nodes) - 20}")
     if issues:
-        lines.append("\n*AI-проверка:*")
+        lines.append("")
+        lines.append("<b>AI-проверка:</b>")
         for it in issues[:8]:
-            emoji = {"error": "❗", "warning": "⚠", "hint": "💡"}[it["level"]]
-            lines.append(f"{emoji} `{it.get('node_id') or '-'}`: {it['message']}")
+            emoji = LEVEL_EMOJI.get(it["level"], "•")
+            lines.append(
+                f"{emoji} <code>{_esc(it.get('node_id') or '-')}</code>: {_esc(it['message'])}"
+            )
     return "\n".join(lines)
 
 
@@ -125,7 +146,10 @@ def _flow_kb(fid: str, published: bool) -> InlineKeyboardMarkup:
             ("➕ Сообщение", f"{CB_PREFIX}add:{fid}:send_message"),
             ("❓ Вопрос", f"{CB_PREFIX}add:{fid}:ask_question"),
         ],
-        [("🧠 AI-проверка", f"{CB_PREFIX}lint:{fid}"), ("👁 Превью", f"{CB_PREFIX}prev:{fid}")],
+        [
+            ("🧠 AI-проверка", f"{CB_PREFIX}lint:{fid}"),
+            ("👁 Превью", f"{CB_PREFIX}prev:{fid}"),
+        ],
         [
             ("⭐ Опубликовать", f"{CB_PREFIX}pub:{fid}")
             if not published
@@ -134,6 +158,19 @@ def _flow_kb(fid: str, published: bool) -> InlineKeyboardMarkup:
         [("⬅ Назад", f"{CB_PREFIX}root")],
     ]
     return _kb(rows)
+
+
+async def _safe_edit(cq: CallbackQuery, text: str, markup: InlineKeyboardMarkup | None) -> None:
+    """edit_text, который не падает если текст не изменился / сообщение слишком старое."""
+    msg = cq.message
+    if msg is None:
+        return
+    try:
+        await msg.edit_text(text, reply_markup=markup, parse_mode="HTML")
+    except Exception as e:
+        log.warning("edit_text failed (%s), sending new message", e)
+        with contextlib.suppress(Exception):
+            await msg.answer(text, reply_markup=markup, parse_mode="HTML")
 
 
 def make_router() -> Router:
@@ -157,15 +194,19 @@ def make_router() -> Router:
             await _dispatch(cq, action, parts[1:])
         except Exception as e:
             log.exception("mini-constructor error")
-            await cq.answer(f"Ошибка: {e}", show_alert=True)
+            with contextlib.suppress(Exception):
+                await cq.answer(f"Ошибка: {e}"[:190], show_alert=True)
 
     return router
 
 
 async def _dispatch(cq: CallbackQuery, action: str, args: list[str]) -> None:
+    msg = cq.message
     if action == "root":
-        await cq.message.delete()  # type: ignore[union-attr]
-        await _send_main_menu(cq.message)  # type: ignore[arg-type]
+        if msg:
+            with contextlib.suppress(Exception):
+                await msg.delete()
+            await _send_main_menu(msg)
         await cq.answer()
         return
     if action == "new":
@@ -177,19 +218,17 @@ async def _dispatch(cq: CallbackQuery, action: str, args: list[str]) -> None:
             }
         ).execute()
         await cq.answer("Создан")
-        await cq.message.delete()  # type: ignore[union-attr]
-        await _send_main_menu(cq.message)  # type: ignore[arg-type]
+        if msg:
+            with contextlib.suppress(Exception):
+                await msg.delete()
+            await _send_main_menu(msg)
         return
     if action == "open":
         flow = _get_flow(args[0])
         if not flow:
             await cq.answer("Флоу не найден", show_alert=True)
             return
-        await cq.message.edit_text(  # type: ignore[union-attr]
-            _format_flow(flow),
-            reply_markup=_flow_kb(flow["id"], flow["is_published"]),
-            parse_mode="Markdown",
-        )
+        await _safe_edit(cq, _format_flow(flow), _flow_kb(flow["id"], flow["is_published"]))
         await cq.answer()
         return
     if action == "lint":
@@ -200,12 +239,14 @@ async def _dispatch(cq: CallbackQuery, action: str, args: list[str]) -> None:
         if not issues:
             await cq.answer("✅ Чисто", show_alert=True)
             return
-        text = "*AI-проверка*\n\n" + "\n".join(
-            f"{ {'error': '❗', 'warning': '⚠', 'hint': '💡'}[i['level']] } "
-            f"`{i.get('node_id') or '-'}` — {i['message']}"
-            for i in issues[:25]
-        )
-        await cq.message.answer(text, parse_mode="Markdown")  # type: ignore[union-attr]
+        lines = ["<b>AI-проверка</b>", ""]
+        for i in issues[:25]:
+            emoji = LEVEL_EMOJI.get(i["level"], "•")
+            lines.append(
+                f"{emoji} <code>{_esc(i.get('node_id') or '-')}</code> — {_esc(i['message'])}"
+            )
+        if msg:
+            await msg.answer("\n".join(lines), parse_mode="HTML")
         await cq.answer()
         return
     if action == "pub":
@@ -213,22 +254,14 @@ async def _dispatch(cq: CallbackQuery, action: str, args: list[str]) -> None:
         await cq.answer("Опубликовано")
         flow = _get_flow(args[0])
         if flow:
-            await cq.message.edit_text(  # type: ignore[union-attr]
-                _format_flow(flow),
-                reply_markup=_flow_kb(flow["id"], flow["is_published"]),
-                parse_mode="Markdown",
-            )
+            await _safe_edit(cq, _format_flow(flow), _flow_kb(flow["id"], flow["is_published"]))
         return
     if action == "unpub":
         _save_flow(args[0], {"is_published": False})
         await cq.answer("Снято")
         flow = _get_flow(args[0])
         if flow:
-            await cq.message.edit_text(  # type: ignore[union-attr]
-                _format_flow(flow),
-                reply_markup=_flow_kb(flow["id"], flow["is_published"]),
-                parse_mode="Markdown",
-            )
+            await _safe_edit(cq, _format_flow(flow), _flow_kb(flow["id"], flow["is_published"]))
         return
     if action == "prev":
         sb = get_supabase()
@@ -273,10 +306,6 @@ async def _dispatch(cq: CallbackQuery, action: str, args: list[str]) -> None:
         await cq.answer(f"Добавлен {new_id}")
         flow = _get_flow(flow["id"])
         if flow:
-            await cq.message.edit_text(  # type: ignore[union-attr]
-                _format_flow(flow),
-                reply_markup=_flow_kb(flow["id"], flow["is_published"]),
-                parse_mode="Markdown",
-            )
+            await _safe_edit(cq, _format_flow(flow), _flow_kb(flow["id"], flow["is_published"]))
         return
     await cq.answer()

@@ -193,6 +193,15 @@ export default function Constructor() {
     }
   }
 
+  // ВАЖНО: хуки нельзя вызывать после ранних return-ов — это ломает порядок хуков
+  // и React падает с «Rendered more hooks than during the previous render»
+  // (одна из причин «белого экрана» при открытии флоу).
+  const issues: Issue[] = useMemo(
+    () => (flow ? validateGraph(flow.graph) : []),
+    [flow],
+  );
+  const issueSummary = validatorSummary(issues);
+
   if (error && !flow) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-red-600">
@@ -203,9 +212,6 @@ export default function Constructor() {
   if (!flow) {
     return <div className="min-h-screen flex items-center justify-center text-sm text-muted">Загрузка…</div>;
   }
-
-  const issues: Issue[] = useMemo(() => validateGraph(flow.graph), [flow.graph]);
-  const issueSummary = validatorSummary(issues);
 
   const selected = flow.graph.nodes.find((n) => n.id === selectedId) || null;
 
