@@ -16,8 +16,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Literal, TypedDict
-
+from collections.abc import Iterable
+from typing import Any, Literal, TypedDict
 
 Level = Literal["error", "warning", "hint"]
 

@@ -71,7 +71,7 @@ def save(session: Session) -> None:
         sb.table("bot_sessions").upsert(
             session.to_row(), on_conflict="telegram_id",
         ).execute()
-    except Exception as exc:  # noqa: BLE001 — we re-raise unrelated ones
+    except Exception as exc:
         if not _is_fk_violation(exc):
             raise
         # Stale published-flow id (was deleted from bot_flows). Reset & retry.
@@ -84,7 +84,7 @@ def save(session: Session) -> None:
         try:
             from app.bot.runtime import registry  # local import to avoid cycle
             registry.invalidate()
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Failed to invalidate registry cache")
         session.flow_id = None
         session.current_node_id = None

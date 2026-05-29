@@ -69,7 +69,7 @@ def flow_exists(flow_id: str) -> bool:
             .execute()
         )
         return bool(resp.data)
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("flow_exists check failed for %s", flow_id)
         return False
 

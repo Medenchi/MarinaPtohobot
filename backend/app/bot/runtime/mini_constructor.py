@@ -17,11 +17,10 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
-from aiogram import Bot, Router, F
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import (
     CallbackQuery,
@@ -150,7 +149,7 @@ def make_router() -> Router:
         action = parts[0]
         try:
             await _dispatch(cq, action, parts[1:])
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.exception("mini-constructor error")
             await cq.answer(f"Ошибка: {e}", show_alert=True)
 
@@ -158,7 +157,6 @@ def make_router() -> Router:
 
 
 async def _dispatch(cq: CallbackQuery, action: str, args: list[str]) -> None:
-    bot: Bot = cq.bot  # type: ignore[assignment]
     if action == "root":
         await cq.message.delete()  # type: ignore[union-attr]
         await _send_main_menu(cq.message)  # type: ignore[arg-type]
