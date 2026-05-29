@@ -238,6 +238,20 @@ async def _handle_callback(cq: CallbackQuery) -> None:
     # Не уходим в новый узел — просто пишем в vars.liked_ids / disliked_ids,
     # отвечаем "сохранил" и выходим. Кнопка «Готово» отправит callback
     # n:<next_node>|done — тот обрабатывается стандартно.
+    # Рейтинг: callback "rate:<var_name>:<value>" пишет в vars[var_name]
+    if isinstance(value, str) and value.startswith("rate:"):
+        _, var_name, rating_value = [*value.split(":", 2), "", ""][:3]
+        if var_name:
+            try:
+                ctx.vars[var_name] = int(rating_value)
+            except (TypeError, ValueError):
+                ctx.vars[var_name] = rating_value
+        await cq.answer(f"Спасибо за {rating_value}⭐!")
+        if target_node_id:
+            await _execute_from(bot, ctx, target_node_id)
+        state.save(ctx.session)
+        return
+
     if isinstance(value, str) and (value.startswith("like:") or value.startswith("skip:")):
         kind, _, oid = value.partition(":")
         node = ctx.nodes.get(target_node_id) if target_node_id else None

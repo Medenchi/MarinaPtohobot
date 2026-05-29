@@ -27,7 +27,9 @@ class Settings(BaseSettings):
     storage_bucket_courses: str = Field(default="course-files", alias="STORAGE_BUCKET_COURSES")
     storage_bucket_pdfs: str = Field(default="outfit-pdfs", alias="STORAGE_BUCKET_PDFS")
 
-    public_web_url: str = Field(default="https://marinazau.denchy.cyou", alias="PUBLIC_WEB_URL")
+    public_web_url: str = Field(
+        default="https://marina-ptohobot-9rip.vercel.app", alias="PUBLIC_WEB_URL"
+    )
     booking_url: str = Field(default="https://zaugolnikova.ru/", alias="BOOKING_URL")
     footer_brand_url: str = Field(default="https://malinacode.is-a.dev", alias="FOOTER_BRAND_URL")
     brand_name: str = Field(default="Marina Photo", alias="BRAND_NAME")
@@ -39,7 +41,7 @@ class Settings(BaseSettings):
     jwt_ttl_hours: int = Field(default=24, alias="JWT_TTL_HOURS")
 
     cors_origins: str = Field(
-        default="http://localhost:5173,https://marinazau.denchy.cyou",
+        default="http://localhost:5173,https://marina-ptohobot-9rip.vercel.app",
         alias="CORS_ORIGINS",
     )
 
