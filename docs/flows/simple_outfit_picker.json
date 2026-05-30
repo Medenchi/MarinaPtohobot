@@ -1,0 +1,263 @@
+{
+  "name": "Подбор образов — простой опросник",
+  "description": "Короткий опросник для подбора образов под съёмку. 4 вопроса → подборка → CTA на бронь.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "command",
+        "params": { "command": "start" },
+        "next": "welcome",
+        "position": { "x": 80, "y": 80 }
+      },
+      {
+        "id": "welcome",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Привет, {{user.first_name}}!~ ~emoji:5215186748450591033|✨~\n\nЯ Марина — снимаю женщин в Москве. Помогу подобрать образы под твою съёмку: ~i:задам 4 вопроса и покажу подборку~.\n\nПоехали?",
+          "buttons": [
+            [
+              {
+                "text": "✨ Поехали",
+                "next": "ask_occasion",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "💬 Я по работе",
+                "url": "https://t.me/mzaugolnikova"
+              }
+            ]
+          ]
+        },
+        "next": null,
+        "position": { "x": 380, "y": 80 }
+      },
+      {
+        "id": "ask_occasion",
+        "type": "ask_question",
+        "params": {
+          "text": "~b:1/4 — По какому поводу съёмка?~",
+          "variable": "occasion",
+          "inline": true,
+          "options": [
+            { "text": "💕 Love-story", "value": "love-story" },
+            { "text": "👨‍👩‍👧 Семейная", "value": "семейная съёмка" },
+            { "text": "🤰 Беременность", "value": "беременность" },
+            { "text": "👩 Индивидуальная", "value": "индивидуальная" },
+            { "text": "🤝 Lookbook", "value": "lookbook" },
+            { "text": "📱 Контент для соцсетей", "value": "контент для соцсетей" }
+          ]
+        },
+        "next": "ask_style",
+        "position": { "x": 680, "y": 80 }
+      },
+      {
+        "id": "ask_style",
+        "type": "ask_question",
+        "params": {
+          "text": "~b:2/4 — Какой стиль ближе?~",
+          "variable": "style",
+          "inline": true,
+          "options": [
+            { "text": "🤍 Минимализм", "value": "минимализм" },
+            { "text": "👔 Классика", "value": "классика" },
+            { "text": "🍂 Old money", "value": "old money" },
+            { "text": "👕 Casual", "value": "casual" },
+            { "text": "🌸 Романтика", "value": "романтика" },
+            { "text": "🤷 Любой", "value": "" }
+          ]
+        },
+        "next": "ask_color",
+        "position": { "x": 980, "y": 80 }
+      },
+      {
+        "id": "ask_color",
+        "type": "ask_question",
+        "params": {
+          "text": "~b:3/4 — Какая палитра нравится?~",
+          "variable": "color",
+          "inline": true,
+          "options": [
+            { "text": "🤎 Бежевый", "value": "бежевый" },
+            { "text": "🤍 Белый/молочный", "value": "белый" },
+            { "text": "🖤 Чёрный", "value": "чёрный" },
+            { "text": "🌸 Пастельный", "value": "пастельный" },
+            { "text": "🫒 Оливковый", "value": "оливковый" },
+            { "text": "🤷 Любая", "value": "" }
+          ]
+        },
+        "next": "ask_gender",
+        "position": { "x": 1280, "y": 80 }
+      },
+      {
+        "id": "ask_gender",
+        "type": "ask_question",
+        "params": {
+          "text": "~b:4/4 — Кому подбираем?~",
+          "variable": "gender",
+          "inline": true,
+          "options": [
+            { "text": "👩 Женское", "value": "женское" },
+            { "text": "👨 Мужское", "value": "мужское" }
+          ]
+        },
+        "next": "searching",
+        "position": { "x": 1580, "y": 80 }
+      },
+      {
+        "id": "searching",
+        "type": "typing",
+        "params": { "seconds": 1.5 },
+        "next": "query_outfits",
+        "position": { "x": 1880, "y": 80 }
+      },
+      {
+        "id": "query_outfits",
+        "type": "db_query",
+        "params": {
+          "table": "outfits",
+          "select": "id, title, description, colors, styles, occasions, gender, external_url, outfit_images(*)",
+          "filters": [
+            { "column": "is_published", "op": "eq", "value": "true" },
+            { "column": "gender", "op": "ilike", "value": "%{{vars.gender}}%" },
+            { "column": "occasions", "op": "ilike", "value": "%{{vars.occasion}}%" }
+          ],
+          "order_by": "sort_order",
+          "limit": 15,
+          "save_to": "matched_outfits"
+        },
+        "next": "check_results",
+        "position": { "x": 80, "y": 320 }
+      },
+      {
+        "id": "check_results",
+        "type": "branch",
+        "params": {
+          "variable": "{{vars.matched_outfits}}",
+          "op": "not_empty",
+          "true_next": "intro_show",
+          "false_next": "empty_state"
+        },
+        "position": { "x": 380, "y": 320 }
+      },
+      {
+        "id": "empty_state",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Точного совпадения у меня сейчас нет~ ~emoji:5215186748450591033|🌿~\n\nНо я могу показать ~i:самое близкое по настроению~.",
+          "buttons": [
+            [
+              {
+                "text": "✨ Показать ближайшее",
+                "next": "query_nearest",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "🔄 Начать заново",
+                "next": "ask_occasion"
+              }
+            ]
+          ]
+        },
+        "next": null,
+        "position": { "x": 680, "y": 320 }
+      },
+      {
+        "id": "query_nearest",
+        "type": "db_query",
+        "params": {
+          "table": "outfits",
+          "select": "id, title, description, colors, styles, occasions, gender, external_url, outfit_images(*)",
+          "filters": [
+            { "column": "is_published", "op": "eq", "value": "true" },
+            { "column": "gender", "op": "ilike", "value": "%{{vars.gender}}%" }
+          ],
+          "order_by": "sort_order",
+          "limit": 15,
+          "save_to": "matched_outfits"
+        },
+        "next": "intro_show",
+        "position": { "x": 980, "y": 320 }
+      },
+      {
+        "id": "intro_show",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Вот что подобралось для тебя~ ~emoji:5215186748450591033|✨~\n\nОтмечай 👍 что отзывается, 💔 что мимо. В конце соберу PDF с твоей подборкой."
+        },
+        "next": "voting",
+        "position": { "x": 1280, "y": 320 }
+      },
+      {
+        "id": "voting",
+        "type": "show_outfits_voting",
+        "params": {
+          "items_var": "matched_outfits",
+          "limit": 15,
+          "liked_var": "liked_ids",
+          "disliked_var": "disliked_ids",
+          "done_text": "~b:Готова?~ Нажми — пришлю PDF и расскажу про съёмку",
+          "done_button": "✨ Готово, собрать PDF"
+        },
+        "next": "make_pdf",
+        "position": { "x": 1580, "y": 320 }
+      },
+      {
+        "id": "make_pdf",
+        "type": "generate_pdf_voted",
+        "params": {
+          "items_var": "matched_outfits",
+          "liked_var": "liked_ids",
+          "filename": "podbor_marina.pdf",
+          "caption": "~b:Твоя подборка~ ~emoji:5215186748450591033|✨~",
+          "send_now": true,
+          "save_to": "pdf"
+        },
+        "next": "cta_main",
+        "position": { "x": 1880, "y": 320 }
+      },
+      {
+        "id": "cta_main",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Теперь главное — съёмка~ ~emoji:5215186748450591033|📸~\n\n~i:PDF с образами у тебя. Осталось снять.~\n\n~b:Пакеты Марины:~\n\n✨ ~b:Экспресс — 15 000 ₽~\n· 1 час · 15 фото · готово за 14 дней\n\n🌿 ~b:Лайт — 25 000 ₽~\n· съёмка до результата · 40 фото + исходники\n\n💫 ~b:Комфорт — 35 000 ₽~\n· до результата · 80 фото + исходники · за 7 дней\n\n👑 ~b:Под ключ — 115 000 ₽~\n· 3 часа студии · стилист, визаж, 3 образа\n· 100 фото + исходники · на следующий день\n\n🎥 ~b:Репортаж — от 8 000 ₽/час~\n· 200+ фото за неделю\n\n~qx:Бронь по задатку 6 000 ₽. Перенос даты до 2 раз. Снимаю с естественным светом, лёгкая ретушь без пластики.~",
+          "buttons": [
+            [
+              {
+                "text": "💬 Записаться к Марине",
+                "url": "https://t.me/mzaugolnikova",
+                "style": "success"
+              }
+            ],
+            [
+              {
+                "text": "🌐 Сайт",
+                "url": "https://zaugolnikova.ru/"
+              }
+            ],
+            [
+              {
+                "text": "🔄 Подобрать ещё раз",
+                "next": "welcome"
+              }
+            ]
+          ]
+        },
+        "next": "end_flow",
+        "position": { "x": 80, "y": 560 }
+      },
+      {
+        "id": "end_flow",
+        "type": "end",
+        "params": {},
+        "next": null,
+        "position": { "x": 380, "y": 560 }
+      }
+    ],
+    "edges": []
+  }
+}
