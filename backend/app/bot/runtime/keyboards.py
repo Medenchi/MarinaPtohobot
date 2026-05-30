@@ -10,6 +10,7 @@ A ``send_message`` block can declare either:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from aiogram.types import (
@@ -55,8 +56,8 @@ def parse_cb(data: str) -> tuple[str, str | None] | None:
 ALLOWED_STYLES = {"default", "primary", "success", "danger"}
 # Алиасы для совместимости со старыми JSON или интуитивными синонимами
 STYLE_ALIASES = {
-    "warning": "danger",       # жёлтого нет — даём красный
-    "secondary": "default",    # серый = default
+    "warning": "danger",  # жёлтого нет — даём красный
+    "secondary": "default",  # серый = default
     "blue": "primary",
     "green": "success",
     "red": "danger",
@@ -70,7 +71,7 @@ def _make_button(b: dict[str, Any], ctx: dict[str, Any]) -> InlineKeyboardButton
 
     text (обяз.), url | callback_data | copy_text | web_app | switch_inline_query,
     style ("primary"|"success"|"danger"|"warning"|"secondary") — Bot API 9.4+,
-    icon_custom_emoji_id — премиум-эмодзи (видно если у владельца бота TG Premium),
+    icon_custom_emoji_id — premium-эмодзи. ВЛАДЕЛЕЦ бота должен иметь TG Premium, тогда видят ВСЕ юзеры (и с Premium, и без). Без Premium у владельца — никто не увидит.
     color (наша эмуляция через эмодзи-кружок — оставлена для обратной совместимости).
     """
     from aiogram.types import CopyTextButton, WebAppInfo
@@ -101,8 +102,19 @@ def _make_button(b: dict[str, Any], ctx: dict[str, Any]) -> InlineKeyboardButton
         style_norm = STYLE_ALIASES.get(raw_style.lower().strip(), raw_style.lower().strip())
         if style_norm in ALLOWED_STYLES and style_norm != "default":
             kwargs["style"] = style_norm
-    # Премиум-иконка (видна всем, если у владельца бота TG Premium)
+    # Премиум-иконка. ВНИМАНИЕ: text уже прошёл light_to_html (~emoji:..~ → <tg-emoji>),
+    # поэтому ищем именно отрендеренный тег <tg-emoji emoji-id="...">fallback</tg-emoji>.
     icon = b.get("icon_custom_emoji_id") or b.get("icon")
+    if not icon:
+        m = re.search(r'<tg-emoji emoji-id="(\d+)">([^<]+)</tg-emoji>\s*', text)
+        if m:
+            icon = m.group(1)
+            fallback = m.group(2).strip()
+            # В text кнопки оставляем чистый fallback (Telegram не парсит HTML в кнопках)
+            text = re.sub(
+                r'<tg-emoji emoji-id="\d+">[^<]+</tg-emoji>\s*', fallback + " ", text
+            ).strip()
+            kwargs["text"] = text
     if icon and str(icon).isdigit():
         kwargs["icon_custom_emoji_id"] = str(icon)
     # color — старая эмуляция через эмодзи (только если нативный style не задан)

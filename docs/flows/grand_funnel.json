@@ -1,0 +1,1159 @@
+{
+  "name": "marina_zaugolnikova_photo_funnel",
+  "description": "Воронка Telegram-бота фотографа Марины Заугольниковой: подбор съёмки, информация о Марине, пакеты и цены, контакт для работы.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "start_cmd",
+        "type": "command",
+        "params": {
+          "command": "start"
+        },
+        "next": "check_ref",
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "check_ref",
+        "type": "branch",
+        "params": {
+          "variable": "{{vars.ref}}",
+          "op": "not_empty",
+          "value": "",
+          "true_next": "ref_welcome",
+          "false_next": "plain_welcome"
+        },
+        "position": {
+          "x": 220,
+          "y": 40
+        }
+      },
+      {
+        "id": "ref_welcome",
+        "type": "send_message",
+        "params": {
+          "text": "~b:О, вижу тебя с Pinterest~ ✨\n\n~i:Ты уже с картинкой в голове — давай я помогу собрать съёмку под твой вайб~\n\n~qx:когда хочется не просто фото, а настроение, которое останется с тобой~ ✨",
+          "buttons": [
+            [
+              {
+                "text": "Подобрать съёмку",
+                "next": "main_pick",
+                "style": "primary"
+              },
+              {
+                "text": "О Марине",
+                "next": "about_menu",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "Пакеты и цены",
+                "next": "packages_menu",
+                "style": "primary"
+              },
+              {
+                "text": "Я по работе",
+                "next": "work_contact",
+                "style": "primary"
+              }
+            ]
+          ]
+        },
+        "next": "ref_to_main",
+        "position": {
+          "x": 420,
+          "y": 20
+        }
+      },
+      {
+        "id": "plain_welcome",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Привет, я Марина Заугольникова~ ✨\n\n~i:Я снимаю женские истории, пары, семьи, беременность, контент и проекты, в которых хочется быть собой~\n\n~qx:моя задача — чтобы ты на фото увидела себя красивой, живой и настоящей~ ✨",
+          "buttons": [
+            [
+              {
+                "text": "Подобрать съёмку",
+                "next": "main_pick",
+                "style": "primary"
+              },
+              {
+                "text": "О Марине",
+                "next": "about_menu",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "Пакеты и цены",
+                "next": "packages_menu",
+                "style": "primary"
+              },
+              {
+                "text": "Я по работе",
+                "next": "work_contact",
+                "style": "primary"
+              }
+            ]
+          ]
+        },
+        "next": "main_pick",
+        "position": {
+          "x": 420,
+          "y": 180
+        }
+      },
+      {
+        "id": "ref_to_main",
+        "type": "goto",
+        "params": {
+          "next": "main_pick"
+        },
+        "next": "main_pick",
+        "position": {
+          "x": 620,
+          "y": 20
+        }
+      },
+      {
+        "id": "main_pick",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Что хочешь почувствовать на съёмке?~ ✨",
+          "buttons": [
+            [
+              {
+                "text": "Нежность",
+                "next": "feeling_text_1",
+                "style": "primary"
+              },
+              {
+                "text": "Сила",
+                "next": "feeling_text_2",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "Лёгкость",
+                "next": "feeling_text_3",
+                "style": "primary"
+              },
+              {
+                "text": "Память",
+                "next": "feeling_text_4",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "Вдохновение",
+                "next": "feeling_text_5",
+                "style": "primary"
+              }
+            ]
+          ]
+        },
+        "next": "ask_feeling",
+        "position": {
+          "x": 40,
+          "y": 300
+        }
+      },
+      {
+        "id": "ask_feeling",
+        "type": "ask_question",
+        "params": {
+          "text": "Выбери, что тебе сейчас важнее всего ✨",
+          "variable": "feeling",
+          "options": [
+            {
+              "text": "Нежность",
+              "value": "нежность"
+            },
+            {
+              "text": "Сила",
+              "value": "сила"
+            },
+            {
+              "text": "Лёгкость",
+              "value": "лёгкость"
+            },
+            {
+              "text": "Память",
+              "value": "память"
+            },
+            {
+              "text": "Вдохновение",
+              "value": "вдохновение"
+            }
+          ],
+          "inline": true
+        },
+        "next": "feeling_route",
+        "position": {
+          "x": 240,
+          "y": 300
+        }
+      },
+      {
+        "id": "feeling_route",
+        "type": "switch",
+        "params": {
+          "variable": "{{vars.feeling}}",
+          "cases": {
+            "нежность": "feeling_text_1",
+            "сила": "feeling_text_2",
+            "лёгкость": "feeling_text_3",
+            "память": "feeling_text_4",
+            "вдохновение": "feeling_text_5"
+          },
+          "default": "feeling_text_3"
+        },
+        "next": "feeling_text_3",
+        "position": {
+          "x": 440,
+          "y": 300
+        }
+      },
+      {
+        "id": "feeling_text_1",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Нежность — это когда кадры дышат~ ✨\n\n~i:Мы соберём мягкий свет, расслабленную позу и тот самый взгляд, в котором ты узнаешь себя~\n\n~qx:нежность всегда выглядит дорого, когда она настоящая~ ✨"
+        },
+        "next": "ask_occasion",
+        "position": {
+          "x": 640,
+          "y": 120
+        }
+      },
+      {
+        "id": "feeling_text_2",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Сила — это про тебя, когда ты стоишь уверенно~ ✨\n\n~i:Я покажу характер, линию, осанку и спокойную внутреннюю опору без перегруза~\n\n~qx:сильная женщина не обязана быть жёсткой, она может быть красивой и мягкой одновременно~ ✨"
+        },
+        "next": "ask_occasion",
+        "position": {
+          "x": 640,
+          "y": 210
+        }
+      },
+      {
+        "id": "feeling_text_3",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Лёгкость — мой любимый режим~ ✨\n\n~i:Когда не нужно играть роль, а можно просто быть, смеяться, двигаться и ловить живые моменты~\n\n~qx:самые тёплые кадры рождаются там, где тебе комфортно~ ✨"
+        },
+        "next": "ask_occasion",
+        "position": {
+          "x": 640,
+          "y": 300
+        }
+      },
+      {
+        "id": "feeling_text_4",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Память — это когда фото остаются с тобой надолго~ ✨\n\n~i:Такие съёмки особенно важны для семьи, беременности и больших личных этапов~\n\n~qx:снимок может стать маленькой машиной времени~ ✨"
+        },
+        "next": "ask_occasion",
+        "position": {
+          "x": 640,
+          "y": 390
+        }
+      },
+      {
+        "id": "feeling_text_5",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Вдохновение — значит, хочется больше, чем просто кадры~ ✨\n\n~i:Тогда я помогу найти образ, палитру и настроение, после которого ты захочешь творить сама~\n\n~qx:вдохновение часто начинается с одной красивой фотографии~ ✨"
+        },
+        "next": "ask_occasion",
+        "position": {
+          "x": 640,
+          "y": 480
+        }
+      },
+      {
+        "id": "ask_occasion",
+        "type": "ask_question",
+        "params": {
+          "text": "Теперь выбери повод съёмки ✨",
+          "variable": "occasion",
+          "options": [
+            {
+              "text": "love-story",
+              "value": "love-story"
+            },
+            {
+              "text": "семейная съёмка",
+              "value": "семейная съёмка"
+            },
+            {
+              "text": "беременность",
+              "value": "беременность"
+            },
+            {
+              "text": "индивидуальная",
+              "value": "индивидуальная"
+            },
+            {
+              "text": "lookbook",
+              "value": "lookbook"
+            },
+            {
+              "text": "контент для соцсетей",
+              "value": "контент для соцсетей"
+            }
+          ],
+          "inline": true
+        },
+        "next": "typing_collect",
+        "position": {
+          "x": 40,
+          "y": 460
+        }
+      },
+      {
+        "id": "typing_collect",
+        "type": "typing",
+        "params": {
+          "seconds": 1.2
+        },
+        "next": "db_outfits_main",
+        "position": {
+          "x": 240,
+          "y": 460
+        }
+      },
+      {
+        "id": "db_outfits_main",
+        "type": "db_query",
+        "params": {
+          "table": "outfits",
+          "select": "*",
+          "filters": [
+            {
+              "column": "is_published",
+              "op": "eq",
+              "value": "true"
+            },
+            {
+              "column": "occasions",
+              "op": "ilike",
+              "value": "{{vars.occasion}}"
+            },
+            {
+              "column": "gender",
+              "op": "ilike",
+              "value": "женское"
+            }
+          ],
+          "order_by": "sort_order",
+          "limit": 12,
+          "save_to": "matched_outfits"
+        },
+        "next": "check_matched_outfits",
+        "position": {
+          "x": 440,
+          "y": 460
+        }
+      },
+      {
+        "id": "check_matched_outfits",
+        "type": "branch",
+        "params": {
+          "variable": "{{vars.matched_outfits}}",
+          "op": "not_empty",
+          "value": "",
+          "true_next": "outfits_intro",
+          "false_next": "outfits_empty_text"
+        },
+        "position": {
+          "x": 640,
+          "y": 460
+        }
+      },
+      {
+        "id": "outfits_empty_text",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Пока ничего не нашла точно под этот запрос~ ✨\n\n~i:Я расширяю поиск и покажу тебе ближайшие по вайбу варианты~"
+        },
+        "next": "db_outfits_nearest",
+        "position": {
+          "x": 840,
+          "y": 460
+        }
+      },
+      {
+        "id": "db_outfits_nearest",
+        "type": "db_query",
+        "params": {
+          "table": "outfits",
+          "select": "*",
+          "filters": [
+            {
+              "column": "is_published",
+              "op": "eq",
+              "value": "true"
+            },
+            {
+              "column": "gender",
+              "op": "ilike",
+              "value": "женское"
+            }
+          ],
+          "order_by": "sort_order",
+          "limit": 12,
+          "save_to": "matched_outfits"
+        },
+        "next": "outfits_intro",
+        "position": {
+          "x": 1040,
+          "y": 460
+        }
+      },
+      {
+        "id": "outfits_intro",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Собрала для тебя варианты, которые можно примерить на твою историю~ ✨\n\n~i:Листай, отмечай то, что откликается, и я соберу финальный PDF с выбранным~\n\n~qx:самое красивое — это когда образ совпадает с твоим настроением~ ✨"
+        },
+        "next": "voting_block",
+        "position": {
+          "x": 40,
+          "y": 620
+        }
+      },
+      {
+        "id": "voting_block",
+        "type": "show_outfits_voting",
+        "params": {
+          "items_var": "matched_outfits",
+          "limit": 12,
+          "liked_var": "liked_ids",
+          "disliked_var": "disliked_ids",
+          "done_text": "Готово, собрали твой вкус ✨",
+          "done_button": "Смотреть PDF"
+        },
+        "next": "pdf_block",
+        "position": {
+          "x": 240,
+          "y": 620
+        }
+      },
+      {
+        "id": "pdf_block",
+        "type": "generate_pdf_voted",
+        "params": {
+          "items_var": "matched_outfits",
+          "liked_var": "liked_ids",
+          "filename": "marina_selection.pdf",
+          "caption": "Твой подбор образов от Марины",
+          "send_now": true,
+          "save_to": "pdf_file"
+        },
+        "next": "final_cta_message",
+        "position": {
+          "x": 440,
+          "y": 620
+        }
+      },
+      {
+        "id": "final_cta_message",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Готова это снять~ ✨\n\n~qx:когда картинка откликается сердцем, съёмка уже почти случилась~\n\n~i:Выбирай пакет ниже, а я помогу довести идею до красивого результата~",
+          "buttons": [
+            [
+              {
+                "text": "Экспресс 15к",
+                "next": "pkg_express",
+                "style": "primary"
+              },
+              {
+                "text": "Лайт 25к",
+                "next": "pkg_light",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "Комфорт 35к",
+                "next": "pkg_comfort",
+                "style": "primary"
+              },
+              {
+                "text": "Под ключ 115к",
+                "next": "pkg_full",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "Репортаж от 8к",
+                "next": "pkg_reportage",
+                "style": "primary"
+              }
+            ]
+          ]
+        },
+        "next": "end_main_flow",
+        "position": {
+          "x": 640,
+          "y": 620
+        }
+      },
+      {
+        "id": "end_main_flow",
+        "type": "end",
+        "params": {},
+        "next": null,
+        "position": {
+          "x": 840,
+          "y": 620
+        }
+      },
+      {
+        "id": "about_menu",
+        "type": "send_message",
+        "params": {
+          "text": "~b:О Марине~ ✨\n\n~i:Выбирай, что хочешь посмотреть сначала~",
+          "buttons": [
+            [
+              {
+                "text": "Стиль",
+                "next": "about_style",
+                "style": "primary"
+              },
+              {
+                "text": "Этапы",
+                "next": "about_steps",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "Пакеты",
+                "next": "packages_menu",
+                "style": "primary"
+              },
+              {
+                "text": "Отзывы",
+                "next": "about_reviews",
+                "style": "primary"
+              }
+            ]
+          ]
+        },
+        "next": "about_style",
+        "position": {
+          "x": 40,
+          "y": 820
+        }
+      },
+      {
+        "id": "about_style",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Мой стиль~ ✨\n\n~i:Я снимаю женственно, живо и аккуратно. Люблю естественный свет, чистые цвета, мягкие эмоции и кадры, в которых ты не играешь роль, а остаёшься собой~\n\n~qx:красота не обязана быть громкой, она может быть очень тихой и глубокой~ ✨",
+          "buttons": [
+            [
+              {
+                "text": "← В меню",
+                "next": "about_menu",
+                "style": "secondary"
+              }
+            ]
+          ]
+        },
+        "next": "about_menu_back_1",
+        "position": {
+          "x": 240,
+          "y": 820
+        }
+      },
+      {
+        "id": "about_menu_back_1",
+        "type": "goto",
+        "params": {
+          "next": "about_menu"
+        },
+        "next": "about_menu",
+        "position": {
+          "x": 440,
+          "y": 820
+        }
+      },
+      {
+        "id": "about_steps",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Как проходит съёмка~ ✨\n\n~i:Сначала мы коротко обсуждаем задачу и настроение, потом подбираем образ и локацию, а дальше я веду тебя по съёмке так, чтобы было спокойно и понятно~\n\n~qx:тебе не нужно уметь позировать — я помогу на каждом шаге~ ✨",
+          "buttons": [
+            [
+              {
+                "text": "← В меню",
+                "next": "about_menu",
+                "style": "secondary"
+              }
+            ]
+          ]
+        },
+        "next": "about_menu_back_2",
+        "position": {
+          "x": 640,
+          "y": 820
+        }
+      },
+      {
+        "id": "about_menu_back_2",
+        "type": "goto",
+        "params": {
+          "next": "about_menu"
+        },
+        "next": "about_menu",
+        "position": {
+          "x": 840,
+          "y": 820
+        }
+      },
+      {
+        "id": "about_reviews",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Отзывы~ ✨\n\n~i:Чаще всего мне пишут, что со мной легко, спокойно и очень красиво. Что на съёмке пропадает скованность, а результат получается живым и тёплым~\n\n~qx:самые ценные отзывы — когда человек хочет вернуться ещё раз~ ✨",
+          "buttons": [
+            [
+              {
+                "text": "← В меню",
+                "next": "about_menu",
+                "style": "secondary"
+              }
+            ]
+          ]
+        },
+        "next": "about_menu_back_3",
+        "position": {
+          "x": 1040,
+          "y": 820
+        }
+      },
+      {
+        "id": "about_menu_back_3",
+        "type": "goto",
+        "params": {
+          "next": "about_menu"
+        },
+        "next": "about_menu",
+        "position": {
+          "x": 1240,
+          "y": 820
+        }
+      },
+      {
+        "id": "packages_menu",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Пакеты и цены~ ✨\n\n~i:Выбирай формат, который ближе по объёму и задаче~",
+          "buttons": [
+            [
+              {
+                "text": "Экспресс 15к",
+                "next": "pkg_express",
+                "style": "primary"
+              },
+              {
+                "text": "Лайт 25к",
+                "next": "pkg_light",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "Комфорт 35к",
+                "next": "pkg_comfort",
+                "style": "primary"
+              },
+              {
+                "text": "Под ключ 115к",
+                "next": "pkg_full",
+                "style": "primary"
+              }
+            ],
+            [
+              {
+                "text": "Репортаж от 8к",
+                "next": "pkg_reportage",
+                "style": "primary"
+              }
+            ]
+          ]
+        },
+        "next": "pkg_express",
+        "position": {
+          "x": 40,
+          "y": 1020
+        }
+      },
+      {
+        "id": "pkg_express",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Экспресс — 15к~ ✨\n\n~i:Короткая, быстрая и очень аккуратная съёмка для свежих кадров без лишней подготовки. Отлично, если тебе нужно красиво и по делу~\n\n~qx:иногда одного часа достаточно, чтобы поймать настоящее настроение~\n\n~emoji:5368324170671202286|✨~",
+          "buttons": [
+            [
+              {
+                "text": "Записаться",
+                "url": "https://t.me/mzaugolnikova",
+                "style": "success"
+              },
+              {
+                "text": "← Назад",
+                "next": "packages_menu",
+                "style": "secondary"
+              }
+            ]
+          ]
+        },
+        "next": "packages_menu_back_1",
+        "position": {
+          "x": 240,
+          "y": 1020
+        }
+      },
+      {
+        "id": "packages_menu_back_1",
+        "type": "goto",
+        "params": {
+          "next": "packages_menu"
+        },
+        "next": "packages_menu",
+        "position": {
+          "x": 440,
+          "y": 1020
+        }
+      },
+      {
+        "id": "pkg_light",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Лайт — 25к~ ✨\n\n~i:Спокойный формат для съёмки с комфортным темпом. Подойдёт, если хочется чуть больше времени на смену кадров и раскрытие образа~\n\n~qx:лёгкость всегда делает кадры живее~\n\n~emoji:5368324170671202286|✨~",
+          "buttons": [
+            [
+              {
+                "text": "Записаться",
+                "url": "https://t.me/mzaugolnikova",
+                "style": "success"
+              },
+              {
+                "text": "← Назад",
+                "next": "packages_menu",
+                "style": "secondary"
+              }
+            ]
+          ]
+        },
+        "next": "packages_menu_back_2",
+        "position": {
+          "x": 640,
+          "y": 1020
+        }
+      },
+      {
+        "id": "packages_menu_back_2",
+        "type": "goto",
+        "params": {
+          "next": "packages_menu"
+        },
+        "next": "packages_menu",
+        "position": {
+          "x": 840,
+          "y": 1020
+        }
+      },
+      {
+        "id": "pkg_comfort",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Комфорт — 35к~ ✨\n\n~i:Для тех, кто хочет больше глубины: обсуждение идеи, подготовка, несколько образов и спокойная уверенность в результате~\n\n~qx:когда у тебя есть время, кадры становятся объёмнее~\n\n~emoji:5368324170671202286|✨~",
+          "buttons": [
+            [
+              {
+                "text": "Записаться",
+                "url": "https://t.me/mzaugolnikova",
+                "style": "success"
+              },
+              {
+                "text": "← Назад",
+                "next": "packages_menu",
+                "style": "secondary"
+              }
+            ]
+          ]
+        },
+        "next": "packages_menu_back_3",
+        "position": {
+          "x": 1040,
+          "y": 1020
+        }
+      },
+      {
+        "id": "packages_menu_back_3",
+        "type": "goto",
+        "params": {
+          "next": "packages_menu"
+        },
+        "next": "packages_menu",
+        "position": {
+          "x": 1240,
+          "y": 1020
+        }
+      },
+      {
+        "id": "pkg_full",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Под ключ — 115к~ ✨\n\n~i:Полное сопровождение проекта: идея, концепция, визуал, организация и съёмка. Если нужен сильный цельный результат — это он~\n\n~qx:под ключ — это когда тебе остаётся только прийти и красиво прожить съёмку~\n\n~emoji:5368324170671202286|✨~",
+          "buttons": [
+            [
+              {
+                "text": "Записаться",
+                "url": "https://t.me/mzaugolnikova",
+                "style": "success"
+              },
+              {
+                "text": "← Назад",
+                "next": "packages_menu",
+                "style": "secondary"
+              }
+            ]
+          ]
+        },
+        "next": "packages_menu_back_4",
+        "position": {
+          "x": 1440,
+          "y": 1020
+        }
+      },
+      {
+        "id": "packages_menu_back_4",
+        "type": "goto",
+        "params": {
+          "next": "packages_menu"
+        },
+        "next": "packages_menu",
+        "position": {
+          "x": 1640,
+          "y": 1020
+        }
+      },
+      {
+        "id": "pkg_reportage",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Репортаж — от 8к~ ✨\n\n~i:Живой формат для событий, встреч и моментов, которые хочется сохранить без постановки. Я ловлю атмосферу, эмоции и детали~\n\n~qx:репортаж — это память о дне такой, какой он был на самом деле~\n\n~emoji:5368324170671202286|✨~",
+          "buttons": [
+            [
+              {
+                "text": "Записаться",
+                "url": "https://t.me/mzaugolnikova",
+                "style": "success"
+              },
+              {
+                "text": "← Назад",
+                "next": "packages_menu",
+                "style": "secondary"
+              }
+            ]
+          ]
+        },
+        "next": "packages_menu_back_5",
+        "position": {
+          "x": 1840,
+          "y": 1020
+        }
+      },
+      {
+        "id": "packages_menu_back_5",
+        "type": "goto",
+        "params": {
+          "next": "packages_menu"
+        },
+        "next": "packages_menu",
+        "position": {
+          "x": 2040,
+          "y": 1020
+        }
+      },
+      {
+        "id": "work_contact",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Если ты по работе~ ✨\n\n~i:Напиши Марине напрямую — она быстро ответит по проектам, съёмкам, срокам и формату~\n\n~qx:лучше всего о задаче расскажет короткое сообщение в Telegram~\n\n~emoji:5368324170671202286|✨~",
+          "buttons": [
+            [
+              {
+                "text": "Написать Марине",
+                "url": "https://t.me/mzaugolnikova",
+                "style": "success"
+              }
+            ]
+          ]
+        },
+        "next": "end_work",
+        "position": {
+          "x": 40,
+          "y": 1200
+        }
+      },
+      {
+        "id": "end_work",
+        "type": "end",
+        "params": {},
+        "next": null,
+        "position": {
+          "x": 240,
+          "y": 1200
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "start_cmd",
+        "to": "check_ref"
+      },
+      {
+        "from": "check_ref",
+        "to": "ref_welcome",
+        "condition": "true"
+      },
+      {
+        "from": "check_ref",
+        "to": "plain_welcome",
+        "condition": "false"
+      },
+      {
+        "from": "ref_welcome",
+        "to": "ref_to_main"
+      },
+      {
+        "from": "plain_welcome",
+        "to": "main_pick"
+      },
+      {
+        "from": "ref_to_main",
+        "to": "main_pick"
+      },
+      {
+        "from": "main_pick",
+        "to": "ask_feeling"
+      },
+      {
+        "from": "ask_feeling",
+        "to": "feeling_route"
+      },
+      {
+        "from": "feeling_route",
+        "to": "feeling_text_1",
+        "condition": "нежность"
+      },
+      {
+        "from": "feeling_route",
+        "to": "feeling_text_2",
+        "condition": "сила"
+      },
+      {
+        "from": "feeling_route",
+        "to": "feeling_text_3",
+        "condition": "лёгкость"
+      },
+      {
+        "from": "feeling_route",
+        "to": "feeling_text_4",
+        "condition": "память"
+      },
+      {
+        "from": "feeling_route",
+        "to": "feeling_text_5",
+        "condition": "вдохновение"
+      },
+      {
+        "from": "feeling_text_1",
+        "to": "ask_occasion"
+      },
+      {
+        "from": "feeling_text_2",
+        "to": "ask_occasion"
+      },
+      {
+        "from": "feeling_text_3",
+        "to": "ask_occasion"
+      },
+      {
+        "from": "feeling_text_4",
+        "to": "ask_occasion"
+      },
+      {
+        "from": "feeling_text_5",
+        "to": "ask_occasion"
+      },
+      {
+        "from": "ask_occasion",
+        "to": "typing_collect"
+      },
+      {
+        "from": "typing_collect",
+        "to": "db_outfits_main"
+      },
+      {
+        "from": "db_outfits_main",
+        "to": "check_matched_outfits"
+      },
+      {
+        "from": "check_matched_outfits",
+        "to": "outfits_intro",
+        "condition": "true"
+      },
+      {
+        "from": "check_matched_outfits",
+        "to": "outfits_empty_text",
+        "condition": "false"
+      },
+      {
+        "from": "outfits_empty_text",
+        "to": "db_outfits_nearest"
+      },
+      {
+        "from": "db_outfits_nearest",
+        "to": "outfits_intro"
+      },
+      {
+        "from": "outfits_intro",
+        "to": "voting_block"
+      },
+      {
+        "from": "voting_block",
+        "to": "pdf_block"
+      },
+      {
+        "from": "pdf_block",
+        "to": "final_cta_message"
+      },
+      {
+        "from": "final_cta_message",
+        "to": "end_main_flow"
+      },
+      {
+        "from": "about_menu",
+        "to": "about_style"
+      },
+      {
+        "from": "about_style",
+        "to": "about_menu_back_1"
+      },
+      {
+        "from": "about_menu_back_1",
+        "to": "about_menu"
+      },
+      {
+        "from": "about_menu",
+        "to": "about_steps"
+      },
+      {
+        "from": "about_steps",
+        "to": "about_menu_back_2"
+      },
+      {
+        "from": "about_menu_back_2",
+        "to": "about_menu"
+      },
+      {
+        "from": "about_menu",
+        "to": "about_reviews"
+      },
+      {
+        "from": "about_reviews",
+        "to": "about_menu_back_3"
+      },
+      {
+        "from": "about_menu_back_3",
+        "to": "about_menu"
+      },
+      {
+        "from": "about_menu",
+        "to": "packages_menu"
+      },
+      {
+        "from": "packages_menu",
+        "to": "pkg_express"
+      },
+      {
+        "from": "pkg_express",
+        "to": "packages_menu_back_1"
+      },
+      {
+        "from": "packages_menu_back_1",
+        "to": "packages_menu"
+      },
+      {
+        "from": "packages_menu",
+        "to": "pkg_light"
+      },
+      {
+        "from": "pkg_light",
+        "to": "packages_menu_back_2"
+      },
+      {
+        "from": "packages_menu_back_2",
+        "to": "packages_menu"
+      },
+      {
+        "from": "packages_menu",
+        "to": "pkg_comfort"
+      },
+      {
+        "from": "pkg_comfort",
+        "to": "packages_menu_back_3"
+      },
+      {
+        "from": "packages_menu_back_3",
+        "to": "packages_menu"
+      },
+      {
+        "from": "packages_menu",
+        "to": "pkg_full"
+      },
+      {
+        "from": "pkg_full",
+        "to": "packages_menu_back_4"
+      },
+      {
+        "from": "packages_menu_back_4",
+        "to": "packages_menu"
+      },
+      {
+        "from": "packages_menu",
+        "to": "pkg_reportage"
+      },
+      {
+        "from": "pkg_reportage",
+        "to": "packages_menu_back_5"
+      },
+      {
+        "from": "packages_menu_back_5",
+        "to": "packages_menu"
+      },
+      {
+        "from": "work_contact",
+        "to": "end_work"
+      }
+    ]
+  }
+}

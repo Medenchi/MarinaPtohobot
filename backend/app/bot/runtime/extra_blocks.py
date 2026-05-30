@@ -19,6 +19,7 @@ import random
 import re
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 from aiogram.enums import ChatAction
 from aiogram.types import (
@@ -340,7 +341,8 @@ async def send_share_button(
     btn = str(render(p.get("button_text") or "📤 Рассказать друзьям", ctx.template_ctx))
     bot_username = settings.bot_username or "marina_bot"
     share_text = str(render(p.get("share_text") or "Посмотри какой крутой бот!", ctx.template_ctx))
-    url = f"https://t.me/share/url?url=https://t.me/{bot_username}&text={share_text}"
+    bot_link = f"https://t.me/{bot_username.lstrip('@')}"
+    url = f"https://t.me/share/url?url={quote(bot_link, safe='')}&text={quote(share_text, safe='')}"
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=btn, url=url)]])
     await bot.send_message(chat_id=ctx.chat_id, text=text, reply_markup=kb, parse_mode="HTML")
     return _advance(node)
@@ -911,7 +913,7 @@ async def send_colored_buttons(
 
     Каждая кнопка может иметь:
       style: primary | success | danger | warning | secondary (Bot API 9.4+)
-      icon_custom_emoji_id: <id> (премиум-эмодзи; видно если у владельца TG Premium)
+      icon_custom_emoji_id: <id> (премиум-эмодзи; ВЛАДЕЛЕЦ бота должен иметь TG Premium → видят ВСЕ юзеры включая без Premium)
       color: green/red/yellow/... (старая эмуляция через эмодзи-кружок —
              используется ТОЛЬКО если style не задан, для обратной совместимости)
     """

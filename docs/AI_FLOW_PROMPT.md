@@ -509,7 +509,7 @@ Telegram НЕ парсит. Эмодзи можно ставить как обы
 * **`style`**: `primary` | `success` | `danger` | `warning` | `secondary`
   — реальные цветные кнопки Telegram (видно всем без подписок)
 * **`icon_custom_emoji_id`**: числовой ID premium-эмодзи (видно всем,
-  если у владельца бота есть Telegram Premium)
+  если у ВЛАДЕЛЬЦА бота есть Telegram Premium → видят ВСЕ юзеры включая без Premium)
 
 ```jsonc
 {
