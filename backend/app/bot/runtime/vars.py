@@ -40,8 +40,25 @@ def render(template: Any, ctx: dict[str, Any]) -> Any:
         match = _TOKEN_RE.fullmatch(template.strip())
         if match:
             return _lookup(ctx, match.group(1))
+
         # 1) подставляем {{vars.x}} / {{user.x}}
-        substituted = _TOKEN_RE.sub(lambda m: str(_lookup(ctx, m.group(1))), template)
+        def _stringify(val):
+            # Защита: если в vars лежит dict {text:..,value:..} (старый баг),
+            # берём value. Если list — join через запятую.
+            if isinstance(val, dict):
+                if "value" in val:
+                    return str(val["value"])
+                if "text" in val:
+                    return str(val["text"])
+                return ""
+            if isinstance(val, list):
+                return ", ".join(_stringify(x) for x in val)
+            return str(val) if val is not None else ""
+
+        substituted = _TOKEN_RE.sub(
+            lambda m: _stringify(_lookup(ctx, m.group(1))),
+            template,
+        )
         # 2) конвертируем лёгкую разметку ~b:текст~ → HTML
         return light_to_html(substituted)
     if isinstance(template, list):

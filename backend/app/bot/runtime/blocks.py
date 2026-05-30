@@ -360,6 +360,11 @@ async def db_query(bot: Bot, ctx: ExecutionContext, node: dict[str, Any]) -> str
         val = render(f.get("value"), ctx.template_ctx)
         if col is None or val in (None, ""):
             continue
+        # Защита: ilike "%%" или "%   %" — фильтр бессмысленный, скипаем
+        if (f.get("op") or "").lower() == "ilike":
+            stripped = str(val).strip().strip("%").strip()
+            if not stripped:
+                continue
         if op == "eq":
             q = q.eq(col, val)
         elif op == "neq":
