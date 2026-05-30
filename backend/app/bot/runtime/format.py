@@ -97,10 +97,17 @@ def find_format_issues(text: str) -> list[str]:
     if not isinstance(text, str) or "~" not in text:
         return []
     issues: list[str] = []
-    # Незакрытые ~
-    tilde_count = text.count("~")
-    if tilde_count % 2 != 0:
-        issues.append(f"Нечётное число «~» ({tilde_count}) — где-то не закрыта разметка")
+    # Сначала выжмем все валидные теги (поддерживает вложение через многопроходную замену)
+    stripped = text
+    for _ in range(8):
+        new_stripped = _TAG_RE.sub("X", stripped)
+        if new_stripped == stripped:
+            break
+        stripped = new_stripped
+    # И только теперь проверяем оставшиеся ~ — если их нечётное число, что-то не закрыто
+    remaining = stripped.count("~")
+    if remaining % 2 != 0:
+        issues.append(f"Нечётное число «~» ({remaining} остались) — где-то не закрыта разметка")
     # Неизвестные теги
     for m in _TAG_RE.finditer(text):
         tag = m.group(1).lower()
