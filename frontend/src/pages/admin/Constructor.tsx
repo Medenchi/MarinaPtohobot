@@ -916,14 +916,12 @@ function ButtonsEditor({
                 className="border border-line rounded px-2 py-1 text-xs bg-white"
                 value={row.style || ""}
                 onChange={(e) => update(i, { style: e.target.value || undefined })}
-                title="Цвет кнопки (Bot API 9.4+)"
+                title="Цвет кнопки. Telegram поддерживает только 4 значения."
               >
-                <option value="">⚪ обычная</option>
-                <option value="primary">🔵 primary (синяя)</option>
-                <option value="success">🟢 success (зелёная)</option>
-                <option value="danger">🔴 danger (красная)</option>
-                <option value="warning">🟡 warning (жёлтая)</option>
-                <option value="secondary">⚫ secondary</option>
+                <option value="">⚪ default (обычная)</option>
+                <option value="primary">🔵 primary (синяя) — главное действие</option>
+                <option value="success">🟢 success (зелёная) — подтвердить</option>
+                <option value="danger">🔴 danger (красная) — отменить/удалить</option>
               </select>
               <input
                 className="border border-line rounded px-2 py-1 text-xs font-mono"

@@ -10,7 +10,6 @@ A ``send_message`` block can declare either:
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from aiogram.types import (
@@ -51,8 +50,19 @@ def parse_cb(data: str) -> tuple[str, str | None] | None:
 # Поэтому по умолчанию мы их ВЫРЕЗАЕМ. Включи только если знаешь, что делаешь:
 #   export ALLOW_INLINE_BUTTON_STYLES=1
 
-ALLOWED_STYLES = {"primary", "success", "danger", "warning", "secondary"}
-ENABLE_STYLES = os.environ.get("ALLOW_INLINE_BUTTON_STYLES", "0") == "1"
+# Telegram Bot API: только 4 валидных значения style.
+# warning/secondary НЕ существуют в TG — он вернёт invalid button style.
+ALLOWED_STYLES = {"default", "primary", "success", "danger"}
+# Алиасы для совместимости со старыми JSON или интуитивными синонимами
+STYLE_ALIASES = {
+    "warning": "danger",       # жёлтого нет — даём красный
+    "secondary": "default",    # серый = default
+    "blue": "primary",
+    "green": "success",
+    "red": "danger",
+    "grey": "default",
+    "gray": "default",
+}
 
 
 def _make_button(b: dict[str, Any], ctx: dict[str, Any]) -> InlineKeyboardButton | None:
@@ -85,24 +95,19 @@ def _make_button(b: dict[str, Any], ctx: dict[str, Any]) -> InlineKeyboardButton
         text = f"{color_map[b['color']]} {text}"
 
     kwargs: dict[str, Any] = {"text": text}
-    # Стиль и premium-иконка — только если ENABLE_STYLES (см. выше)
-    if ENABLE_STYLES:
-        style = b.get("style")
-        if isinstance(style, str) and style.lower() in ALLOWED_STYLES:
-            kwargs["style"] = style.lower()
-        icon = b.get("icon_custom_emoji_id") or b.get("icon")
-        if icon and str(icon).isdigit():
-            kwargs["icon_custom_emoji_id"] = str(icon)
-    # Иначе — эмулируем цвет через эмодзи-кружок в начале текста
-    elif b.get("style") or b.get("color"):
-        style = (b.get("style") or "").lower()
-        color = (b.get("color") or "").lower()
-        emoji_map = {
-            "primary": "🔵",
-            "success": "🟢",
-            "danger": "🔴",
-            "warning": "🟡",
-            "secondary": "⚪",
+    # Стиль кнопки (Telegram Bot API: 4 валидных значения: default/primary/success/danger)
+    raw_style = b.get("style")
+    if isinstance(raw_style, str):
+        style_norm = STYLE_ALIASES.get(raw_style.lower().strip(), raw_style.lower().strip())
+        if style_norm in ALLOWED_STYLES and style_norm != "default":
+            kwargs["style"] = style_norm
+    # Премиум-иконка (видна всем, если у владельца бота TG Premium)
+    icon = b.get("icon_custom_emoji_id") or b.get("icon")
+    if icon and str(icon).isdigit():
+        kwargs["icon_custom_emoji_id"] = str(icon)
+    # color — старая эмуляция через эмодзи (только если нативный style не задан)
+    if not kwargs.get("style") and b.get("color"):
+        color_map = {
             "green": "🟢",
             "red": "🔴",
             "yellow": "🟡",
@@ -112,7 +117,7 @@ def _make_button(b: dict[str, Any], ctx: dict[str, Any]) -> InlineKeyboardButton
             "black": "⚫",
             "white": "⚪",
         }
-        prefix = emoji_map.get(style) or emoji_map.get(color)
+        prefix = color_map.get(str(b["color"]).lower())
         if prefix and not text.startswith(prefix):
             kwargs["text"] = f"{prefix} {text}"
 

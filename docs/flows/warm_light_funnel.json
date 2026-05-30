@@ -50,7 +50,8 @@
             [
               {
                 "text": "📩 Написать Марине",
-                "url": "https://t.me/mzaugolnikova"
+                "url": "https://t.me/mzaugolnikova",
+                "style": "primary"
               },
               {
                 "text": "🌐 Смотреть сайт",
@@ -150,7 +151,8 @@
             [
               {
                 "text": "Поехали дальше",
-                "next": "occasion_question"
+                "next": "occasion_question",
+                "style": "primary"
               }
             ]
           ],
@@ -172,7 +174,8 @@
             [
               {
                 "text": "Поехали дальше",
-                "next": "occasion_question"
+                "next": "occasion_question",
+                "style": "primary"
               }
             ]
           ],
@@ -194,7 +197,8 @@
             [
               {
                 "text": "Поехали дальше",
-                "next": "occasion_question"
+                "next": "occasion_question",
+                "style": "primary"
               }
             ]
           ],
@@ -216,7 +220,8 @@
             [
               {
                 "text": "Поехали дальше",
-                "next": "occasion_question"
+                "next": "occasion_question",
+                "style": "primary"
               }
             ]
           ],
@@ -238,7 +243,8 @@
             [
               {
                 "text": "Поехали дальше",
-                "next": "occasion_question"
+                "next": "occasion_question",
+                "style": "primary"
               }
             ]
           ],
