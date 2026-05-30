@@ -913,7 +913,7 @@ async def send_colored_buttons(
 
     Каждая кнопка может иметь:
       style: primary | success | danger | warning | secondary (Bot API 9.4+)
-      icon_custom_emoji_id: <id> (премиум-эмодзи; видно если у владельца TG Premium)
+      icon_custom_emoji_id: <id> (премиум-эмодзи; ВЛАДЕЛЕЦ бота должен иметь TG Premium → видят ВСЕ юзеры включая без Premium)
       color: green/red/yellow/... (старая эмуляция через эмодзи-кружок —
              используется ТОЛЬКО если style не задан, для обратной совместимости)
     """

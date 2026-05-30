@@ -71,7 +71,7 @@ def _make_button(b: dict[str, Any], ctx: dict[str, Any]) -> InlineKeyboardButton
 
     text (обяз.), url | callback_data | copy_text | web_app | switch_inline_query,
     style ("primary"|"success"|"danger"|"warning"|"secondary") — Bot API 9.4+,
-    icon_custom_emoji_id — премиум-эмодзи (видно если у владельца бота TG Premium),
+    icon_custom_emoji_id — premium-эмодзи. ВЛАДЕЛЕЦ бота должен иметь TG Premium, тогда видят ВСЕ юзеры (и с Premium, и без). Без Premium у владельца — никто не увидит.
     color (наша эмуляция через эмодзи-кружок — оставлена для обратной совместимости).
     """
     from aiogram.types import CopyTextButton, WebAppInfo
