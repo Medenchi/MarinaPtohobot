@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -60,7 +61,32 @@ def _normalize_parse_mode(mode: str | None) -> str:
     return "HTML"
 
 
+def _strip_invalid_emoji(text: str) -> str:
+    """Убирает <tg-emoji emoji-id="...">fb</tg-emoji>, оставляя только fb."""
+    return re.sub(r"<tg-emoji emoji-id=\"\d+\">([^<]+)</tg-emoji>", r"\1", text)
+
+
+def _strip_invalid_emoji_kb(kb):
+    """Убирает icon_custom_emoji_id из всех кнопок клавиатуры (на случай retry)."""
+    if kb is None or not hasattr(kb, "inline_keyboard"):
+        return kb
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    new_rows = []
+    for row in kb.inline_keyboard:
+        new_row = []
+        for b in row:
+            data = b.model_dump(exclude_none=True)
+            data.pop("icon_custom_emoji_id", None)
+            data.pop("style", None)
+            new_row.append(InlineKeyboardButton(**data))
+        new_rows.append(new_row)
+    return InlineKeyboardMarkup(inline_keyboard=new_rows)
+
+
 async def send_message(bot: Bot, ctx: ExecutionContext, node: dict[str, Any]) -> str | None:
+    from aiogram.exceptions import TelegramBadRequest
+
     p = node.get("params") or {}
     text = str(render(p.get("text") or "", ctx.template_ctx))
     if not text:
@@ -69,13 +95,38 @@ async def send_message(bot: Bot, ctx: ExecutionContext, node: dict[str, Any]) ->
     kb = build_inline(p.get("buttons"), ctx.template_ctx)
     if kb is None:
         kb = build_reply(p.get("reply_keyboard"), ctx.template_ctx)
-    await bot.send_message(
-        chat_id=ctx.chat_id,
-        text=text,
-        parse_mode=parse_mode,
-        reply_markup=kb,
-        disable_web_page_preview=bool(p.get("disable_preview", True)),
-    )
+    try:
+        await bot.send_message(
+            chat_id=ctx.chat_id,
+            text=text,
+            parse_mode=parse_mode,
+            reply_markup=kb,
+            disable_web_page_preview=bool(p.get("disable_preview", True)),
+        )
+    except TelegramBadRequest as exc:
+        msg = str(exc).lower()
+        # DOCUMENT_INVALID / MEDIA_EMPTY / CUSTOM_EMOJI_INVALID — premium-эмодзи невалиден
+        # Retry без premium-emoji: чистим текст и кнопки
+        if any(
+            k in msg
+            for k in (
+                "document_invalid",
+                "media_empty",
+                "custom_emoji",
+                "invalid button style",
+                "tg-emoji",
+            )
+        ):
+            log.warning("send_message retry without premium emojis: %s", str(exc)[:120])
+            await bot.send_message(
+                chat_id=ctx.chat_id,
+                text=_strip_invalid_emoji(text),
+                parse_mode=parse_mode,
+                reply_markup=_strip_invalid_emoji_kb(kb),
+                disable_web_page_preview=bool(p.get("disable_preview", True)),
+            )
+        else:
+            raise
     return _advance(node)
 
 
@@ -309,6 +360,11 @@ async def db_query(bot: Bot, ctx: ExecutionContext, node: dict[str, Any]) -> str
         val = render(f.get("value"), ctx.template_ctx)
         if col is None or val in (None, ""):
             continue
+        # Защита: ilike "%%" или "%   %" — фильтр бессмысленный, скипаем
+        if (f.get("op") or "").lower() == "ilike":
+            stripped = str(val).strip().strip("%").strip()
+            if not stripped:
+                continue
         if op == "eq":
             q = q.eq(col, val)
         elif op == "neq":

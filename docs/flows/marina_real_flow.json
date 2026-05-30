@@ -1,0 +1,261 @@
+{
+  "name": "Подбор образов — реальная воронка Марины",
+  "description": "6 вопросов через Telegram-Poll, удаление предыдущих сообщений, gender-адаптация обращений, галерея с листанием ◀▶, два PDF (для просмотра + для печати сеточкой).",
+  "graph": {
+    "nodes": [
+      { "id": "start", "type": "command", "params": { "command": "start" }, "next": "welcome", "position": { "x": 80, "y": 80 } },
+
+      {
+        "id": "welcome",
+        "type": "send_message",
+        "params": {
+          "text": "~b:Привет, {{user.first_name}}!~ ~emoji:5409020441794734300|✨~\n\nЯ ~b:Марина Заугольникова~ — фотограф из Москвы.\n\n~qx:Снимаю КОНТЕНТ для экспертов и личных брендов, ПОРТРЕТЫ и РЕПОРТАЖИ с мероприятий. Сейчас задам 6 коротких вопросов в формате опроса — и соберу подборку образов под твою съёмку.~\n\nПоехали?",
+          "buttons": [
+            [{ "text": "Начать", "next": "q1_format", "style": "primary", "icon_custom_emoji_id": "5409020441794734300" }],
+            [{ "text": "Я по работе", "url": "https://t.me/mzaugolnikova", "icon_custom_emoji_id": "5276037216244624892" }],
+            [{ "text": "Услуги", "url": "https://zaugolnikova.ru/uslugi", "icon_custom_emoji_id": "5278305362703835500" }]
+          ]
+        },
+        "next": null, "position": { "x": 380, "y": 80 }
+      },
+
+      {
+        "id": "q1_format", "type": "ask_poll",
+        "params": {
+          "question": "1/6 — Какой формат съёмки?",
+          "variable": "shoot_format",
+          "options": [
+            { "text": "📷 КОНТЕНТ — для соцсетей, бренда", "value": "контент" },
+            { "text": "👤 ПОРТРЕТ — индивидуальная", "value": "портрет" },
+            { "text": "🎬 РЕПОРТАЖ — мероприятие", "value": "репортаж" },
+            { "text": "🤷 Пока не решил(а)", "value": "" }
+          ]
+        },
+        "next": "del_q1", "position": { "x": 680, "y": 80 }
+      },
+      { "id": "del_q1", "type": "delete_last_message", "params": { "count": 1 }, "next": "q2_style", "position": { "x": 980, "y": 80 } },
+
+      {
+        "id": "q2_style", "type": "ask_poll",
+        "params": {
+          "question": "2/6 — Какой стиль ближе?",
+          "variable": "style",
+          "options": [
+            { "text": "🤍 Минимализм", "value": "минимализм" },
+            { "text": "👔 Классика", "value": "классика" },
+            { "text": "🍂 Old money", "value": "old money" },
+            { "text": "👕 Casual", "value": "casual" },
+            { "text": "🌸 Романтика", "value": "романтика" },
+            { "text": "🤷 Любой", "value": "" }
+          ]
+        },
+        "next": "del_q2", "position": { "x": 1280, "y": 80 }
+      },
+      { "id": "del_q2", "type": "delete_last_message", "params": { "count": 1 }, "next": "q3_palette", "position": { "x": 1580, "y": 80 } },
+
+      {
+        "id": "q3_palette", "type": "ask_poll",
+        "params": {
+          "question": "3/6 — Какая палитра нравится?",
+          "variable": "color", "multiple": true,
+          "options": [
+            { "text": "🤎 Бежевый", "value": "бежевый" },
+            { "text": "🤍 Белый и молочный", "value": "белый" },
+            { "text": "🖤 Чёрный", "value": "чёрный" },
+            { "text": "🌸 Пастельный", "value": "пастельный" },
+            { "text": "🫒 Оливковый и зелёный", "value": "оливковый" },
+            { "text": "🍷 Бордовый и тёмные", "value": "бордовый" }
+          ]
+        },
+        "next": "del_q3", "position": { "x": 80, "y": 320 }
+      },
+      { "id": "del_q3", "type": "delete_last_message", "params": { "count": 1 }, "next": "q4_location", "position": { "x": 380, "y": 320 } },
+
+      {
+        "id": "q4_location", "type": "ask_poll",
+        "params": {
+          "question": "4/6 — Где планируешь снимать?",
+          "variable": "location",
+          "options": [
+            { "text": "🏠 Студия с естественным светом", "value": "студия" },
+            { "text": "🌳 Улица / локация", "value": "улица" },
+            { "text": "🏡 Дома", "value": "дома" },
+            { "text": "🎪 Мероприятие", "value": "мероприятие" },
+            { "text": "🤔 Помоги выбрать", "value": "" }
+          ]
+        },
+        "next": "del_q4", "position": { "x": 680, "y": 320 }
+      },
+      { "id": "del_q4", "type": "delete_last_message", "params": { "count": 1 }, "next": "q5_gender", "position": { "x": 980, "y": 320 } },
+
+      {
+        "id": "q5_gender", "type": "ask_poll",
+        "params": {
+          "question": "5/6 — Кому подбираем образы?",
+          "variable": "gender",
+          "options": [
+            { "text": "👩 Женское", "value": "женское" },
+            { "text": "👨 Мужское", "value": "мужское" }
+          ]
+        },
+        "next": "del_q5", "position": { "x": 1280, "y": 320 }
+      },
+      { "id": "del_q5", "type": "delete_last_message", "params": { "count": 1 }, "next": "set_gender_words", "position": { "x": 1580, "y": 320 } },
+
+      {
+        "id": "set_gender_words", "type": "branch",
+        "params": {
+          "variable": "{{vars.gender}}",
+          "op": "eq", "value": "мужское",
+          "true_next": "set_male",
+          "false_next": "set_female"
+        },
+        "position": { "x": 80, "y": 560 }
+      },
+      {
+        "id": "set_male", "type": "set_variable",
+        "params": { "name": "ready_word", "value": "готов" },
+        "next": "set_male2", "position": { "x": 380, "y": 560 }
+      },
+      {
+        "id": "set_male2", "type": "set_variable",
+        "params": { "name": "you_word", "value": "тебя" },
+        "next": "q6_when", "position": { "x": 680, "y": 560 }
+      },
+      {
+        "id": "set_female", "type": "set_variable",
+        "params": { "name": "ready_word", "value": "готова" },
+        "next": "set_female2", "position": { "x": 380, "y": 720 }
+      },
+      {
+        "id": "set_female2", "type": "set_variable",
+        "params": { "name": "you_word", "value": "тебя" },
+        "next": "q6_when", "position": { "x": 680, "y": 720 }
+      },
+
+      {
+        "id": "q6_when", "type": "ask_poll",
+        "params": {
+          "question": "6/6 — Когда хочется снимать?",
+          "variable": "when",
+          "options": [
+            { "text": "🔥 Срочно — в ближайшие 2 недели", "value": "urgent" },
+            { "text": "🌿 В этом месяце", "value": "this_month" },
+            { "text": "🌸 Через 1–2 месяца", "value": "later" },
+            { "text": "👀 Просто исследую", "value": "browse" }
+          ]
+        },
+        "next": "del_q6", "position": { "x": 980, "y": 560 }
+      },
+      { "id": "del_q6", "type": "delete_last_message", "params": { "count": 1 }, "next": "searching", "position": { "x": 1280, "y": 560 } },
+
+      {
+        "id": "searching", "type": "send_message",
+        "params": { "text": "~i:Собираю для {{vars.you_word}} подборку...~ ~emoji:5409020441794734300|✨~" },
+        "next": "typing_pause", "position": { "x": 1580, "y": 560 }
+      },
+      { "id": "typing_pause", "type": "typing", "params": { "seconds": 1.8 }, "next": "query_outfits", "position": { "x": 80, "y": 800 } },
+
+      {
+        "id": "query_outfits", "type": "db_query",
+        "params": {
+          "table": "outfits",
+          "select": "id, title, description, colors, styles, occasions, gender, external_url, outfit_images(*)",
+          "filters": [
+            { "column": "is_published", "op": "eq", "value": "true" },
+            { "column": "gender", "op": "ilike", "value": "%{{vars.gender}}%" }
+          ],
+          "order_by": "sort_order", "limit": 30, "save_to": "matched_outfits"
+        },
+        "next": "check_results", "position": { "x": 380, "y": 800 }
+      },
+      {
+        "id": "check_results", "type": "branch",
+        "params": {
+          "variable": "{{vars.matched_outfits}}",
+          "op": "not_empty",
+          "true_next": "intro_gallery",
+          "false_next": "empty_state"
+        },
+        "position": { "x": 680, "y": 800 }
+      },
+
+      {
+        "id": "empty_state", "type": "send_message",
+        "params": {
+          "text": "~b:У меня пока нет образов под твой запрос~ ~emoji:5352699801202877573|🌿~\n\nНо я уже знаю что подойдёт — давай созвонимся.",
+          "buttons": [[{ "text": "Написать Марине", "url": "https://t.me/mzaugolnikova", "style": "success", "icon_custom_emoji_id": "5278589204207528856" }]]
+        },
+        "next": null, "position": { "x": 980, "y": 800 }
+      },
+
+      {
+        "id": "intro_gallery", "type": "send_message",
+        "params": {
+          "text": "~b:{{vars.ready_word}}?~ ~emoji:5409020441794734300|✨~\n\nСейчас покажу образы по одному.\n\n<b>👇 ЛИСТАЙ кнопками</b> ◀ Назад / Вперёд ▶, отмечай 👍 что нравится."
+        },
+        "next": "gallery", "position": { "x": 1280, "y": 800 }
+      },
+      {
+        "id": "gallery", "type": "show_outfits_gallery",
+        "params": {
+          "items_var": "matched_outfits",
+          "liked_var": "liked_ids",
+          "disliked_var": "disliked_ids"
+        },
+        "next": "make_pdf_view", "position": { "x": 1580, "y": 800 }
+      },
+
+      {
+        "id": "make_pdf_view", "type": "generate_pdf_voted",
+        "params": {
+          "items_var": "matched_outfits",
+          "liked_var": "liked_ids",
+          "filename": "podbor_marina_prosmotr.pdf",
+          "caption": "~b:PDF для просмотра~ ~emoji:5409020441794734300|✨~\n~i:Один образ на страницу — удобно листать на телефоне~",
+          "send_now": true,
+          "save_to": "pdf_view"
+        },
+        "next": "make_pdf_print", "position": { "x": 80, "y": 1040 }
+      },
+      {
+        "id": "make_pdf_print", "type": "generate_pdf_grid",
+        "params": {
+          "items_var": "matched_outfits",
+          "liked_var": "liked_ids",
+          "filename": "podbor_marina_pechat.pdf",
+          "caption": "~b:PDF для печати~ ~emoji:5447347200935881418|📷~\n~i:4 образа на странице A4 — компактно, для распечатки~",
+          "send_now": true,
+          "save_to": "pdf_print"
+        },
+        "next": "cta_main", "position": { "x": 380, "y": 1040 }
+      },
+
+      {
+        "id": "cta_main", "type": "send_message",
+        "params": {
+          "text": "~b:Главное — съёмка~ ~emoji:5447347200935881418|📷~\n\n~i:Два PDF у тебя на руках. Осталось снять.~\n\n~b:Что я снимаю~\n\n~emoji:5447347200935881418|📷~ ~b:КОНТЕНТ~ — для соцсетей экспертов, личных брендов, продуктов\n~emoji:5276229330131772747|👤~ ~b:ПОРТРЕТ~ — индивидуальная съёмка под результат\n~emoji:5447582530783966241|🎥~ ~b:РЕПОРТАЖ~ — мероприятия, события, корпоративы\n\n~qx:Все подробности по услугам и пакетам — на моём сайте. Снимаю с естественным светом, лёгкая ретушь без пластики. Бронирование по задатку.~",
+          "buttons": [
+            [{ "text": "Написать Марине", "url": "https://t.me/mzaugolnikova", "style": "success", "icon_custom_emoji_id": "5278589204207528856" }],
+            [
+              { "text": "КОНТЕНТ", "url": "https://zaugolnikova.ru/kontent", "icon_custom_emoji_id": "5447347200935881418" },
+              { "text": "ПОРТРЕТ", "url": "https://zaugolnikova.ru/portret", "icon_custom_emoji_id": "5276229330131772747" }
+            ],
+            [
+              { "text": "РЕПОРТАЖ", "url": "https://zaugolnikova.ru/reportazh", "icon_custom_emoji_id": "5447582530783966241" },
+              { "text": "Услуги", "url": "https://zaugolnikova.ru/uslugi", "icon_custom_emoji_id": "5278305362703835500" }
+            ],
+            [
+              { "text": "Отзывы", "url": "https://zaugolnikova.ru/comments", "icon_custom_emoji_id": "5413426279376514843" },
+              { "text": "Контакты", "url": "https://zaugolnikova.ru/contacts", "icon_custom_emoji_id": "5278589204207528856" }
+            ],
+            [{ "text": "Подобрать ещё раз", "next": "welcome", "icon_custom_emoji_id": "5404827286698485350" }]
+          ]
+        },
+        "next": "end_flow", "position": { "x": 680, "y": 1040 }
+      },
+      { "id": "end_flow", "type": "end", "params": {}, "next": null, "position": { "x": 980, "y": 1040 } }
+    ],
+    "edges": []
+  }
+}

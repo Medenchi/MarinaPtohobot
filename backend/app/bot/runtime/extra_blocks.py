@@ -798,31 +798,66 @@ async def ask_poll(
 ) -> str | None:
     """Telegram-опрос, который ставит флоу на паузу.
 
-    Когда юзер голосует, приходит update poll_answer — engine ловит и
-    пишет результат в vars[variable], потом advance.
+    Поддерживает форматы options:
+      - ["Текст 1", "Текст 2"]
+      - [{"text":"📷 Контент","value":"контент"}, ...]
+      - ["{'text': 'X', 'value': 'Y'}"] (старый баг — парсим через ast)
     """
+    import ast
+
     p = node.get("params") or {}
     question = str(render(p.get("question") or "?", ctx.template_ctx))
-    options = [str(render(o, ctx.template_ctx)) for o in (p.get("options") or [])]
+    raw_options = p.get("options") or []
     variable = str(p.get("variable") or "").strip()
-    if not options or not variable:
+
+    option_texts: list[str] = []
+    option_values: list[str] = []
+    for o in raw_options:
+        text_v = ""
+        value_v = ""
+        if isinstance(o, dict):
+            text_v = str(render(o.get("text") or o.get("label") or "", ctx.template_ctx))
+            raw_v = o.get("value") if "value" in o else text_v
+            value_v = str(render(raw_v, ctx.template_ctx))
+        else:
+            rendered = str(render(o, ctx.template_ctx)).strip()
+            # Защита от str(dict): "{'text': 'X', 'value': 'Y'}"
+            if rendered.startswith("{") and "text" in rendered and "value" in rendered:
+                try:
+                    parsed = ast.literal_eval(rendered)
+                    if isinstance(parsed, dict):
+                        text_v = str(parsed.get("text") or "")
+                        value_v = str(parsed.get("value") if "value" in parsed else text_v)
+                except Exception:
+                    text_v = rendered
+                    value_v = rendered
+            else:
+                text_v = rendered
+                value_v = rendered
+        if text_v:
+            option_texts.append(text_v)
+            option_values.append(value_v)
+
+    if not option_texts or not variable:
         return _advance(node)
 
     msg = await bot.send_poll(
         chat_id=ctx.chat_id,
         question=question,
-        options=options,
-        is_anonymous=False,  # обязательно False — иначе poll_answer не придёт
+        options=option_texts,
+        is_anonymous=False,
         allows_multiple_answers=bool(p.get("multiple", False)),
     )
-    # Сохраняем poll_id → (variable, node_id, options) для последующего матчинга
     poll_map = ctx.vars.setdefault("_pending_polls", {})
     if msg.poll:
         poll_map[msg.poll.id] = {
             "variable": variable,
             "node_id": node["id"],
-            "options": options,
+            "options": option_texts,
+            "values": option_values,
             "multiple": bool(p.get("multiple", False)),
+            "chat_id": ctx.chat_id,
+            "telegram_id": ctx.session.telegram_id,
         }
     ctx.session.awaiting_input = True
     return None
@@ -952,3 +987,12 @@ EXTRA_BLOCKS.update(
         "send_colored_buttons": send_colored_buttons,
     }
 )
+
+# ---- Подключение галереи и PDF-grid из _gallery_blocks ----
+from app.bot.runtime._gallery_blocks import (  # noqa: E402
+    generate_pdf_grid_block,
+    show_outfits_gallery,
+)
+
+EXTRA_BLOCKS["generate_pdf_grid"] = generate_pdf_grid_block
+EXTRA_BLOCKS["show_outfits_gallery"] = show_outfits_gallery
