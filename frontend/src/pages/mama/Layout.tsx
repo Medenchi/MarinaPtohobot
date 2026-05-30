@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { CalendarBlank, ChartBar, Images, Package } from "@phosphor-icons/react";
+import { CalendarBlank, ChartBar, Images, Package, Link as LinkIcon } from "@phosphor-icons/react";
 import { clearToken } from "@/lib/supabase";
 import { classNames } from "@/lib/util";
 import Footer from "@/components/Footer";
@@ -10,6 +10,7 @@ const ITEMS = [
   { to: "/mama/courses", label: "Курсы", Icon: Package },
   { to: "/mama/bookings", label: "Заявки", Icon: CalendarBlank },
   { to: "/mama/stats", label: "Статистика", Icon: ChartBar },
+  { to: "/mama/posts", label: "Посты", Icon: LinkIcon },
 ];
 
 export default function MamaLayout({ children }: { children: ReactNode }) {

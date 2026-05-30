@@ -119,7 +119,7 @@ async def send_album(bot: Bot, ctx: ExecutionContext, node: dict[str, Any]) -> s
         cap = str(render(caption_t, cap_ctx)) if caption_t else (item.get("title") or "")
         media.append(
             InputMediaPhoto(
-                media=URLInputFile(f"{base}/storage/v1/object/public/{bucket}/{path}"),
+                media=URLInputFile((path if path.startswith("http") else f"{base}/storage/v1/object/public/{bucket}/{path}")),
                 caption=cap[:1024] if cap else None,
             ),
         )
@@ -556,7 +556,7 @@ async def show_outfits_voting(
         try:
             await bot.send_photo(
                 chat_id=ctx.chat_id,
-                photo=URLInputFile(f"{base}/storage/v1/object/public/{bucket}/{path}"),
+                photo=URLInputFile((path if path.startswith("http") else f"{base}/storage/v1/object/public/{bucket}/{path}")),
                 caption=title[:1024],
                 reply_markup=kb,
             )

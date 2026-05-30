@@ -10,6 +10,7 @@ import Outfits from "@/pages/mama/Outfits";
 import Courses from "@/pages/mama/Courses";
 import Bookings from "@/pages/mama/Bookings";
 import Stats from "@/pages/mama/Stats";
+import Posts from "@/pages/mama/Posts";
 
 export default function App() {
   return (
@@ -100,6 +101,14 @@ export default function App() {
         element={
           <AuthGuard role="mama" loginPath="/mama/login">
             <Stats />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/mama/posts"
+        element={
+          <AuthGuard role="mama" loginPath="/mama/login">
+            <Posts />
           </AuthGuard>
         }
       />

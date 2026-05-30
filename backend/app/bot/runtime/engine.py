@@ -256,6 +256,9 @@ async def _handle_message(
                     event_type="deeplink",
                     payload={"ref": deeplink},
                 )
+                import contextlib
+                with contextlib.suppress(Exception):
+                    state.get_supabase().rpc("increment_post_clicks", {"p_code": deeplink}).execute()
 
     # 2) Mid-question answer: capture text and resume.
     if target_node_id is None and ctx.session.awaiting_input and ctx.session.current_node_id:
