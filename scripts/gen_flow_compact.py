@@ -89,7 +89,7 @@ def extract_json(text: str) -> dict:
     if start >= 0 and end > start: return json.loads(text[start:end+1])
     raise ValueError("Не нашёл JSON")
 
-def call_openai(api_key, base, model, system, messages, max_tokens=8000, timeout=300.0):
+def call_openai(api_key, base, model, system, messages, max_tokens=16000, timeout=300.0):
     headers = {"Authorization": f"Bearer {api_key}", "content-type": "application/json"}
     payload = {"model": model, "max_tokens": max_tokens,
                "messages": [{"role":"system","content":system}] + messages}
