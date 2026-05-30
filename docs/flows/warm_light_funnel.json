@@ -24,17 +24,15 @@
             [
               {
                 "text": "✨ Я хочу съёмку",
-                "next": "feeling_question",
-                "style": "primary"
+                "next": "feeling_question"
               },
               {
                 "text": "💼 Я по работе",
-                "next": "work_contacts",
-                "style": "secondary"
+                "next": "work_contacts"
               }
             ]
           ],
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "feeling_question",
@@ -57,19 +55,17 @@
               },
               {
                 "text": "🌐 Смотреть сайт",
-                "url": "https://zaugolnikova.ru",
-                "style": "secondary"
+                "url": "https://zaugolnikova.ru"
               }
             ],
             [
               {
                 "text": "↩️ Вернуться к началу",
-                "next": "start_over",
-                "style": "secondary"
+                "next": "start_over"
               }
             ]
           ],
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "start_over",
@@ -160,7 +156,7 @@
               }
             ]
           ],
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "occasion_question",
@@ -183,7 +179,7 @@
               }
             ]
           ],
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "occasion_question",
@@ -206,7 +202,7 @@
               }
             ]
           ],
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "occasion_question",
@@ -229,7 +225,7 @@
               }
             ]
           ],
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "occasion_question",
@@ -252,7 +248,7 @@
               }
             ]
           ],
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "occasion_question",
@@ -418,9 +414,10 @@
               "value": "{{vars.style_choice}}"
             }
           ],
-          "order_by": "created_at desc",
+          "order_by": "created_at",
           "limit": 12,
-          "save_to": "matched_outfits"
+          "save_to": "matched_outfits",
+          "descending": true
         },
         "next": "check_outfits_empty",
         "position": {
@@ -453,12 +450,11 @@
             [
               {
                 "text": "Показать самое близкое",
-                "next": "query_nearest",
-                "style": "primary"
+                "next": "query_nearest"
               }
             ]
           ],
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "query_nearest",
@@ -485,9 +481,10 @@
               "value": "{{vars.gender_choice}}"
             }
           ],
-          "order_by": "created_at desc",
+          "order_by": "created_at",
           "limit": 12,
-          "save_to": "matched_outfits"
+          "save_to": "matched_outfits",
+          "descending": true
         },
         "next": "intro_show",
         "position": {
@@ -500,7 +497,7 @@
         "type": "send_message",
         "params": {
           "text": "~b:Вот что подобралось~ ~emoji:5368324170671202286|✨~\n\nЯ собрала для тебя варианты, которые могут почувствоваться «своими». Отмечай сердцем — и мы поймём, что ближе всего.",
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "outfits_voting",
@@ -552,24 +549,21 @@
             [
               {
                 "text": "📩 t.me/mzaugolnikova",
-                "url": "https://t.me/mzaugolnikova",
-                "style": "primary"
+                "url": "https://t.me/mzaugolnikova"
               },
               {
                 "text": "🌐 zaugolnikova.ru",
-                "url": "https://zaugolnikova.ru",
-                "style": "secondary"
+                "url": "https://zaugolnikova.ru"
               }
             ],
             [
               {
                 "text": "↩️ Подобрать ещё раз",
-                "next": "welcome_message",
-                "style": "warning"
+                "next": "welcome_message"
               }
             ]
           ],
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "disable_preview": true
         },
         "next": "end_flow",
