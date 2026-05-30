@@ -167,7 +167,8 @@ async def _handle_poll_answer(answer: PollAnswer) -> None:
         log.debug("poll_answer без pending poll %s", answer.poll_id)
         return
     options = info.get("options") or []
-    chosen = [options[i] for i in (answer.option_ids or []) if 0 <= i < len(options)]
+    values = info.get("values") or options  # fallback на old behavior (text==value)
+    chosen = [values[i] for i in (answer.option_ids or []) if 0 <= i < len(values)]
     if info.get("multiple"):
         session.vars[info["variable"]] = chosen
     else:

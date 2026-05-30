@@ -6,9 +6,14 @@
       {
         "id": "start",
         "type": "command",
-        "params": { "command": "start" },
+        "params": {
+          "command": "start"
+        },
         "next": "welcome",
-        "position": { "x": 80, "y": 80 }
+        "position": {
+          "x": 80,
+          "y": 80
+        }
       },
       {
         "id": "welcome",
@@ -41,9 +46,11 @@
           ]
         },
         "next": null,
-        "position": { "x": 380, "y": 80 }
+        "position": {
+          "x": 380,
+          "y": 80
+        }
       },
-
       {
         "id": "q1_format",
         "type": "ask_poll",
@@ -51,23 +58,42 @@
           "question": "1/6 — Какой формат съёмки?",
           "variable": "shoot_format",
           "options": [
-            "📸 КОНТЕНТ — для соцсетей, бренда",
-            "👤 ПОРТРЕТ — индивидуальная",
-            "🎬 РЕПОРТАЖ — мероприятие",
-            "🤷 Пока не решила"
+            {
+              "text": "📷 КОНТЕНТ — для соцсетей, бренда",
+              "value": "контент"
+            },
+            {
+              "text": "👤 ПОРТРЕТ — индивидуальная",
+              "value": "портрет"
+            },
+            {
+              "text": "🎬 РЕПОРТАЖ — мероприятие",
+              "value": "репортаж"
+            },
+            {
+              "text": "🤷 Пока не решила",
+              "value": ""
+            }
           ]
         },
         "next": "del_q1",
-        "position": { "x": 680, "y": 80 }
+        "position": {
+          "x": 680,
+          "y": 80
+        }
       },
       {
         "id": "del_q1",
         "type": "delete_last_message",
-        "params": { "count": 1 },
+        "params": {
+          "count": 1
+        },
         "next": "q2_style",
-        "position": { "x": 980, "y": 80 }
+        "position": {
+          "x": 980,
+          "y": 80
+        }
       },
-
       {
         "id": "q2_style",
         "type": "ask_poll",
@@ -75,25 +101,50 @@
           "question": "2/6 — Какой стиль ближе?",
           "variable": "style",
           "options": [
-            "🤍 Минимализм — чисто, спокойно",
-            "👔 Классика — собрано, дорого",
-            "🍂 Old money — естественная роскошь",
-            "👕 Casual — расслабленно, по-домашнему",
-            "🌸 Романтика — нежно, женственно",
-            "🤷 Любой / помоги выбрать"
+            {
+              "text": "🤍 Минимализм — чисто, спокойно",
+              "value": "минимализм"
+            },
+            {
+              "text": "👔 Классика — собрано, дорого",
+              "value": "классика"
+            },
+            {
+              "text": "🍂 Old money — естественная роскошь",
+              "value": "old money"
+            },
+            {
+              "text": "👕 Casual — расслабленно, по-домашнему",
+              "value": "casual"
+            },
+            {
+              "text": "🌸 Романтика — нежно, женственно",
+              "value": "романтика"
+            },
+            {
+              "text": "🤷 Любой / помоги выбрать",
+              "value": ""
+            }
           ]
         },
         "next": "del_q2",
-        "position": { "x": 1280, "y": 80 }
+        "position": {
+          "x": 1280,
+          "y": 80
+        }
       },
       {
         "id": "del_q2",
         "type": "delete_last_message",
-        "params": { "count": 1 },
+        "params": {
+          "count": 1
+        },
         "next": "q3_palette",
-        "position": { "x": 1580, "y": 80 }
+        "position": {
+          "x": 1580,
+          "y": 80
+        }
       },
-
       {
         "id": "q3_palette",
         "type": "ask_poll",
@@ -102,25 +153,50 @@
           "variable": "color",
           "multiple": true,
           "options": [
-            "🤎 Бежевый",
-            "🤍 Белый и молочный",
-            "🖤 Чёрный",
-            "🌸 Пастельный",
-            "🫒 Оливковый и зелёный",
-            "🍷 Бордовый и тёмные оттенки"
+            {
+              "text": "🤎 Бежевый",
+              "value": "бежевый"
+            },
+            {
+              "text": "🤍 Белый и молочный",
+              "value": "белый"
+            },
+            {
+              "text": "🖤 Чёрный",
+              "value": "чёрный"
+            },
+            {
+              "text": "🌸 Пастельный",
+              "value": "пастельный"
+            },
+            {
+              "text": "🫒 Оливковый и зелёный",
+              "value": "оливковый"
+            },
+            {
+              "text": "🍷 Бордовый и тёмные оттенки",
+              "value": "бордовый"
+            }
           ]
         },
         "next": "del_q3",
-        "position": { "x": 80, "y": 320 }
+        "position": {
+          "x": 80,
+          "y": 320
+        }
       },
       {
         "id": "del_q3",
         "type": "delete_last_message",
-        "params": { "count": 1 },
+        "params": {
+          "count": 1
+        },
         "next": "q4_location",
-        "position": { "x": 380, "y": 320 }
+        "position": {
+          "x": 380,
+          "y": 320
+        }
       },
-
       {
         "id": "q4_location",
         "type": "ask_poll",
@@ -128,24 +204,46 @@
           "question": "4/6 — Где планируешь снимать?",
           "variable": "location",
           "options": [
-            "🏠 Студия с естественным светом",
-            "🌳 Улица / локация",
-            "🏡 Дома",
-            "🎪 Мероприятие",
-            "🤔 Помоги выбрать"
+            {
+              "text": "🏠 Студия с естественным светом",
+              "value": "студия"
+            },
+            {
+              "text": "🌳 Улица / локация",
+              "value": "улица"
+            },
+            {
+              "text": "🏡 Дома",
+              "value": "дома"
+            },
+            {
+              "text": "🎪 Мероприятие",
+              "value": "мероприятие"
+            },
+            {
+              "text": "🤔 Помоги выбрать",
+              "value": ""
+            }
           ]
         },
         "next": "del_q4",
-        "position": { "x": 680, "y": 320 }
+        "position": {
+          "x": 680,
+          "y": 320
+        }
       },
       {
         "id": "del_q4",
         "type": "delete_last_message",
-        "params": { "count": 1 },
+        "params": {
+          "count": 1
+        },
         "next": "q5_gender",
-        "position": { "x": 980, "y": 320 }
+        "position": {
+          "x": 980,
+          "y": 320
+        }
       },
-
       {
         "id": "q5_gender",
         "type": "ask_poll",
@@ -153,21 +251,34 @@
           "question": "5/6 — Кому подбираем образы?",
           "variable": "gender",
           "options": [
-            "👩 Женское",
-            "👨 Мужское"
+            {
+              "text": "👩 Женское",
+              "value": "женское"
+            },
+            {
+              "text": "👨 Мужское",
+              "value": "мужское"
+            }
           ]
         },
         "next": "del_q5",
-        "position": { "x": 1280, "y": 320 }
+        "position": {
+          "x": 1280,
+          "y": 320
+        }
       },
       {
         "id": "del_q5",
         "type": "delete_last_message",
-        "params": { "count": 1 },
+        "params": {
+          "count": 1
+        },
         "next": "q6_when",
-        "position": { "x": 1580, "y": 320 }
+        "position": {
+          "x": 1580,
+          "y": 320
+        }
       },
-
       {
         "id": "q6_when",
         "type": "ask_poll",
@@ -175,23 +286,42 @@
           "question": "6/6 — Когда хочется снять?",
           "variable": "when",
           "options": [
-            "🔥 Срочно — в ближайшие 2 недели",
-            "🌿 В этом месяце",
-            "🌸 Через 1–2 месяца",
-            "👀 Просто исследую"
+            {
+              "text": "🔥 Срочно — в ближайшие 2 недели",
+              "value": "urgent"
+            },
+            {
+              "text": "🌿 В этом месяце",
+              "value": "this_month"
+            },
+            {
+              "text": "🌸 Через 1–2 месяца",
+              "value": "later"
+            },
+            {
+              "text": "👀 Просто исследую",
+              "value": "browse"
+            }
           ]
         },
         "next": "del_q6",
-        "position": { "x": 80, "y": 560 }
+        "position": {
+          "x": 80,
+          "y": 560
+        }
       },
       {
         "id": "del_q6",
         "type": "delete_last_message",
-        "params": { "count": 1 },
+        "params": {
+          "count": 1
+        },
         "next": "searching",
-        "position": { "x": 380, "y": 560 }
+        "position": {
+          "x": 380,
+          "y": 560
+        }
       },
-
       {
         "id": "searching",
         "type": "send_message",
@@ -199,16 +329,23 @@
           "text": "~i:Собираю для тебя подборку...~ ~emoji:5409020441794734300|✨~"
         },
         "next": "typing_pause",
-        "position": { "x": 680, "y": 560 }
+        "position": {
+          "x": 680,
+          "y": 560
+        }
       },
       {
         "id": "typing_pause",
         "type": "typing",
-        "params": { "seconds": 1.8 },
+        "params": {
+          "seconds": 1.8
+        },
         "next": "query_outfits",
-        "position": { "x": 980, "y": 560 }
+        "position": {
+          "x": 980,
+          "y": 560
+        }
       },
-
       {
         "id": "query_outfits",
         "type": "db_query",
@@ -216,15 +353,26 @@
           "table": "outfits",
           "select": "id, title, description, colors, styles, occasions, gender, external_url, outfit_images(*)",
           "filters": [
-            { "column": "is_published", "op": "eq", "value": "true" },
-            { "column": "gender", "op": "ilike", "value": "%{{vars.gender}}%" }
+            {
+              "column": "is_published",
+              "op": "eq",
+              "value": "true"
+            },
+            {
+              "column": "gender",
+              "op": "ilike",
+              "value": "%{{vars.gender}}%"
+            }
           ],
           "order_by": "sort_order",
           "limit": 20,
           "save_to": "matched_outfits"
         },
         "next": "check_results",
-        "position": { "x": 1280, "y": 560 }
+        "position": {
+          "x": 1280,
+          "y": 560
+        }
       },
       {
         "id": "check_results",
@@ -235,9 +383,11 @@
           "true_next": "intro_show",
           "false_next": "empty_state"
         },
-        "position": { "x": 1580, "y": 560 }
+        "position": {
+          "x": 1580,
+          "y": 560
+        }
       },
-
       {
         "id": "empty_state",
         "type": "send_message",
@@ -255,9 +405,11 @@
           ]
         },
         "next": null,
-        "position": { "x": 80, "y": 800 }
+        "position": {
+          "x": 80,
+          "y": 800
+        }
       },
-
       {
         "id": "intro_show",
         "type": "send_message",
@@ -265,7 +417,10 @@
           "text": "~b:Вот что подобралось~ ~emoji:5409020441794734300|✨~\n\nОтметь 👍 что отзывается, 💔 что мимо. В конце соберу ~b:PDF-подборку для печати~ — один образ на страницу."
         },
         "next": "voting",
-        "position": { "x": 380, "y": 800 }
+        "position": {
+          "x": 380,
+          "y": 800
+        }
       },
       {
         "id": "voting",
@@ -279,7 +434,10 @@
           "done_button": "Готово, собрать PDF"
         },
         "next": "make_pdf",
-        "position": { "x": 680, "y": 800 }
+        "position": {
+          "x": 680,
+          "y": 800
+        }
       },
       {
         "id": "make_pdf",
@@ -293,9 +451,11 @@
           "save_to": "pdf"
         },
         "next": "cta_main",
-        "position": { "x": 980, "y": 800 }
+        "position": {
+          "x": 980,
+          "y": 800
+        }
       },
-
       {
         "id": "cta_main",
         "type": "send_message",
@@ -356,14 +516,20 @@
           ]
         },
         "next": "end_flow",
-        "position": { "x": 1280, "y": 800 }
+        "position": {
+          "x": 1280,
+          "y": 800
+        }
       },
       {
         "id": "end_flow",
         "type": "end",
         "params": {},
         "next": null,
-        "position": { "x": 1580, "y": 800 }
+        "position": {
+          "x": 1580,
+          "y": 800
+        }
       }
     ],
     "edges": []
