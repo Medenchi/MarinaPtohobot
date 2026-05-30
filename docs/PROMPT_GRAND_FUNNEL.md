@@ -167,7 +167,11 @@
 - ~link:https://x|текст~ → <a href="x">текст</a>
 - ~emoji:ID|✨~ → <tg-emoji emoji-id="ID">✨</tg-emoji> 
   (premium-эмодзи; видны всем при условии что у владельца бота TG Premium)
-  В кнопках НЕ ИСПОЛЬЗУЙ — Telegram игнорирует HTML в text кнопок.
+  В тексте кнопки тоже можно: ~emoji:ID|✨~ — движок автоматически
+  вытащит ID в icon_custom_emoji_id и оставит fallback в text. 
+  ⚠ Чтобы premium-эмодзи РЕАЛЬНО показывался в кнопке всем юзерам — 
+  у владельца бота должен быть Telegram Premium. Без Premium TG покажет
+  только обычный fallback-эмодзи.
 
 # Цвета кнопок (Bot API 9.4+, 4 валидных значения)
 
