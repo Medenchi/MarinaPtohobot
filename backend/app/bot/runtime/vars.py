@@ -13,6 +13,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.bot.runtime.format import light_to_html
+
 _TOKEN_RE = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 
 
@@ -38,7 +40,10 @@ def render(template: Any, ctx: dict[str, Any]) -> Any:
         match = _TOKEN_RE.fullmatch(template.strip())
         if match:
             return _lookup(ctx, match.group(1))
-        return _TOKEN_RE.sub(lambda m: str(_lookup(ctx, m.group(1))), template)
+        # 1) подставляем {{vars.x}} / {{user.x}}
+        substituted = _TOKEN_RE.sub(lambda m: str(_lookup(ctx, m.group(1))), template)
+        # 2) конвертируем лёгкую разметку ~b:текст~ → HTML
+        return light_to_html(substituted)
     if isinstance(template, list):
         return [render(item, ctx) for item in template]
     if isinstance(template, dict):

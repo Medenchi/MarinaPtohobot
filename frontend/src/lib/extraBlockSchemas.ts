@@ -388,3 +388,95 @@ export const EXTRA_BLOCK_SCHEMAS: BlockSchema[] = [
     ],
   },
 ];
+
+// ===== ВТОРАЯ ВОЛНА: удаление, опросы, бот-управление-собой, цветные кнопки =====
+
+EXTRA_BLOCK_SCHEMAS.push(
+  // ---- Управление сообщениями ----
+  {
+    type: "delete_last_message",
+    group: "special",
+    title: "Удалить последнее сообщение",
+    description: "Стирает N последних сообщений бота, чтобы не наслаивались карточки.",
+    hasNext: true,
+    fields: [{ key: "count", label: "Сколько удалить", kind: "number", placeholder: "1" }],
+  },
+  {
+    type: "clear_chat",
+    group: "special",
+    title: "Очистить весь чат бота",
+    description: "Удаляет ВСЕ сообщения бота за сессию (лимит TG: 48 ч).",
+    hasNext: true,
+    fields: [],
+  },
+  // ---- Poll как вопрос ----
+  {
+    type: "ask_poll",
+    group: "input",
+    title: "Вопрос-опрос (Poll)",
+    description:
+      "Нативный Telegram-опрос. Юзер голосует — ответ пишется в vars[variable], затем next. Поддерживает множественный выбор.",
+    hasNext: true,
+    fields: [
+      { key: "question", label: "Вопрос", kind: "textarea", required: true },
+      { key: "options", label: "Варианты", kind: "options-list" },
+      { key: "variable", label: "Имя переменной", kind: "text", required: true },
+      { key: "multiple", label: "Можно выбрать несколько", kind: "boolean" },
+    ],
+  },
+  // ---- Бот меняет себя ----
+  {
+    type: "set_bot_name",
+    group: "special",
+    title: "Сменить имя бота",
+    description: "bot.set_my_name(name). Лимит 64 символа.",
+    hasNext: true,
+    fields: [
+      { key: "name", label: "Новое имя", kind: "text", required: true },
+      { key: "language_code", label: "Язык (ru/en)", kind: "text", placeholder: "ru" },
+    ],
+  },
+  {
+    type: "set_bot_description",
+    group: "special",
+    title: "Сменить описание бота",
+    description: "bot.set_my_description. Лимит 512 символов. Видно в профиле.",
+    hasNext: true,
+    fields: [
+      { key: "description", label: "Описание", kind: "textarea", required: true },
+      { key: "language_code", label: "Язык", kind: "text", placeholder: "ru" },
+    ],
+  },
+  {
+    type: "set_bot_short_description",
+    group: "special",
+    title: "Сменить короткое описание",
+    description: "Видно в превью-карточке при шаринге. Лимит 120 символов.",
+    hasNext: true,
+    fields: [
+      { key: "short_description", label: "Короткое описание", kind: "text", required: true },
+      { key: "language_code", label: "Язык", kind: "text", placeholder: "ru" },
+    ],
+  },
+  {
+    type: "set_bot_avatar",
+    group: "special",
+    title: "Сменить аватарку бота",
+    description: "bot.set_my_profile_photo (aiogram 3.27+). URL должен быть https://.",
+    hasNext: true,
+    fields: [{ key: "url", label: "URL картинки", kind: "text", required: true }],
+  },
+  // ---- Цветные кнопки (через эмодзи) ----
+  {
+    type: "send_colored_buttons",
+    group: "special",
+    title: "Сообщение с «цветными» кнопками",
+    description:
+      "Эмулирует цвета через эмодзи-префиксы (🟢/🔴/🟡/🔵/🟣/🟠/⚫/⚪). У каждой кнопки поле color. Telegram не поддерживает реальные цвета inline-кнопок в обычных чатах.",
+    hasNext: true,
+    fields: [
+      { key: "text", label: "Текст", kind: "textarea", required: true },
+      { key: "buttons", label: "Кнопки (с полем color)", kind: "buttons" },
+    ],
+  },
+);

@@ -128,6 +128,21 @@ export function validateGraph(graph: FlowGraph): Issue[] {
     }
   }
 
+  // Проверка лёгкой разметки (~b:..~, ~link:url|text~, ~emoji:id|fb~)
+  for (const n of nodes) {
+    const nid = n.id || null;
+    const walk = (v: unknown): void => {
+      if (typeof v === "string") {
+        issues.push(...checkLightFormat(v, nid));
+      } else if (Array.isArray(v)) {
+        v.forEach(walk);
+      } else if (v && typeof v === "object") {
+        Object.values(v as Record<string, unknown>).forEach(walk);
+      }
+    };
+    walk(n.params);
+  }
+
   // достижимость
   const reachable = new Set<string>();
   const stack = nodes.filter((n) => TRIGGER_TYPES.has(n.type) && n.id).map((n) => n.id as string);
@@ -171,3 +186,63 @@ export function summary(issues: Issue[]): Record<Level, number> {
   for (const i of issues) o[i.level]++;
   return o;
 }
+
+// ===== Light-markup validator (~b:...~, ~link:url|text~, ~emoji:id|fb~) =====
+
+const ALLOWED_LIGHT_TAGS = new Set([
+  "b", "i", "u", "s", "code", "spoiler", "q", "qx", "link", "emoji",
+]);
+const LIGHT_TAG_RE = /~(\w+):([^~]+)~/g;
+
+export function checkLightFormat(text: string, nodeId: string | null): Issue[] {
+  if (!text || typeof text !== "string" || !text.includes("~")) return [];
+  const out: Issue[] = [];
+  const tildes = (text.match(/~/g) || []).length;
+  if (tildes % 2 !== 0) {
+    out.push({
+      level: "warning",
+      node_id: nodeId,
+      code: "format_unclosed",
+      message: `Нечётное число «~» (${tildes}) — где-то не закрыта разметка`,
+    });
+  }
+  let m: RegExpExecArray | null;
+  const re = new RegExp(LIGHT_TAG_RE);
+  while ((m = re.exec(text)) !== null) {
+    const tag = m[1].toLowerCase();
+    const raw = m[2];
+    if (!ALLOWED_LIGHT_TAGS.has(tag)) {
+      out.push({
+        level: "warning",
+        node_id: nodeId,
+        code: "format_unknown_tag",
+        message: `Неизвестный тег ~${tag}:...~`,
+      });
+      continue;
+    }
+    if (tag === "link") {
+      const url = (raw.split("|")[0] || "").trim();
+      if (!/^(https?:\/\/|tg:\/\/|t\.me\/)/.test(url)) {
+        out.push({
+          level: "warning",
+          node_id: nodeId,
+          code: "format_bad_link",
+          message: `~link: «${url}» — нужна схема https://, http://, tg:// или t.me/`,
+        });
+      }
+    }
+    if (tag === "emoji") {
+      const id = (raw.split("|")[0] || "").trim();
+      if (!/^\d+$/.test(id)) {
+        out.push({
+          level: "warning",
+          node_id: nodeId,
+          code: "format_bad_emoji",
+          message: `~emoji: «${id}» — id должен быть числовым`,
+        });
+      }
+    }
+  }
+  return out;
+}
+

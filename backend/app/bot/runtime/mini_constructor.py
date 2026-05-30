@@ -34,6 +34,7 @@ from aiogram.types import (
 )
 
 from app.bot.runtime import registry, validator
+from app.bot.runtime.multibot import register_child_bot
 from app.core.config import settings
 from app.core.supabase import get_supabase
 
@@ -228,6 +229,37 @@ def make_router() -> Router:
         if not _is_owner(message.from_user.id if message.from_user else None):
             return
         await _send_admin_keyboard(message)
+
+    @router.message(Command("addbot"))
+    async def on_addbot(message: Message) -> None:
+        if not _is_owner(message.from_user.id if message.from_user else None):
+            return
+        parts = (message.text or "").split(maxsplit=1)
+        if len(parts) < 2:
+            await message.answer(
+                "Использование: <code>/addbot 123456:ABC-DEF...</code>\n\n"
+                "Получи токен у @BotFather и пришли командой выше. "
+                "Бот добавится в пул и заработает после рестарта контейнера.",
+                parse_mode="HTML",
+            )
+            return
+        token = parts[1].strip()
+        if ":" not in token or len(token) < 30:
+            await message.answer("Это не похоже на валидный токен бота.")
+            return
+        row = register_child_bot(
+            token=token,
+            owner_telegram_id=message.from_user.id if message.from_user else None,
+            display_name=f"Bot by {message.from_user.id}" if message.from_user else None,
+        )
+        if row:
+            await message.answer(
+                f"✅ Бот зарегистрирован (id={row.get('id')}).\n"
+                "Перезапусти контейнер чтобы он начал поллиться.",
+                parse_mode="HTML",
+            )
+        else:
+            await message.answer("Не удалось сохранить (см. логи).")
 
     @router.message(Command("hide"))
     async def on_hide(message: Message) -> None:

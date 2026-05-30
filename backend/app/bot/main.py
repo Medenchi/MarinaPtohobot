@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import sys
 
@@ -18,17 +19,21 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from app.bot.runtime.engine import make_router
+from app.bot.runtime.middleware import install as install_msgid_middleware
 from app.bot.runtime.mini_constructor import make_router as make_mini_router
+from app.bot.runtime.multibot import build_child_bots
 from app.core.config import settings
 
 log = logging.getLogger(__name__)
 
 
 def build_bot() -> Bot:
-    return Bot(
+    b = Bot(
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
+    install_msgid_middleware(b)
+    return b
 
 
 def build_dispatcher() -> Dispatcher:
@@ -42,11 +47,18 @@ def build_dispatcher() -> Dispatcher:
 async def run() -> None:
     bot = build_bot()
     dp = build_dispatcher()
-    log.info("Bot polling started (constructor runtime)")
+    child_bots = build_child_bots()
+    all_bots = [bot, *child_bots]
+    log.info(
+        "Bot polling started: 1 main + %d child bots",
+        len(child_bots),
+    )
     try:
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+        await dp.start_polling(*all_bots, allowed_updates=dp.resolve_used_update_types())
     finally:
-        await bot.session.close()
+        for b in all_bots:
+            with contextlib.suppress(Exception):
+                await b.session.close()
 
 
 # Allow other modules (the FastAPI preview endpoint) to share one Bot instance.
