@@ -45,12 +45,27 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def _normalize_parse_mode(mode: str | None) -> str:
+    """Markdown/md/null → HTML. Тексты с ~tag:..~ через light_to_html всегда дают HTML."""
+    if not mode:
+        return "HTML"
+    m = str(mode).strip().lower()
+    if m in ("html", "htm"):
+        return "HTML"
+    if m in ("markdown", "md"):
+        # У нас вся разметка в HTML — Markdown сломается на наших тегах
+        return "HTML"
+    if m in ("markdownv2", "markdown_v2", "markdown-v2"):
+        return "MarkdownV2"
+    return "HTML"
+
+
 async def send_message(bot: Bot, ctx: ExecutionContext, node: dict[str, Any]) -> str | None:
     p = node.get("params") or {}
     text = str(render(p.get("text") or "", ctx.template_ctx))
     if not text:
         text = "…"
-    parse_mode = p.get("parse_mode") or "HTML"
+    parse_mode = _normalize_parse_mode(p.get("parse_mode"))
     kb = build_inline(p.get("buttons"), ctx.template_ctx)
     if kb is None:
         kb = build_reply(p.get("reply_keyboard"), ctx.template_ctx)
@@ -313,7 +328,16 @@ async def db_query(bot: Bot, ctx: ExecutionContext, node: dict[str, Any]) -> str
         elif op == "is_published":
             q = q.eq("is_published", True)
     if order:
-        q = q.order(str(order), desc=bool(p.get("descending", False)))
+        # order может быть "col" или "col desc" или "col asc" — парсим оба варианта
+        order_str = str(order).strip()
+        order_desc = bool(p.get("descending", False))
+        if " desc" in order_str.lower():
+            order_str = order_str.lower().replace(" desc", "").strip()
+            order_desc = True
+        elif " asc" in order_str.lower():
+            order_str = order_str.lower().replace(" asc", "").strip()
+            order_desc = False
+        q = q.order(order_str, desc=order_desc)
     q = q.limit(limit)
     try:
         resp = q.execute()

@@ -10,6 +10,7 @@ A ``send_message`` block can declare either:
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from aiogram.types import (
@@ -42,8 +43,16 @@ def parse_cb(data: str) -> tuple[str, str | None] | None:
     return rest, None
 
 
-# Bot API 9.4+ цвета стилей кнопок
+# Bot API 9.4+ цвета стилей кнопок.
+# ВНИМАНИЕ: Telegram принимает их ТОЛЬКО для:
+#   - Direct Messages admin keyboards в каналах
+#   - Business inline buttons
+# В обычных чатах юзер-бота → 'Bad Request: invalid button style specified'.
+# Поэтому по умолчанию мы их ВЫРЕЗАЕМ. Включи только если знаешь, что делаешь:
+#   export ALLOW_INLINE_BUTTON_STYLES=1
+
 ALLOWED_STYLES = {"primary", "success", "danger", "warning", "secondary"}
+ENABLE_STYLES = os.environ.get("ALLOW_INLINE_BUTTON_STYLES", "0") == "1"
 
 
 def _make_button(b: dict[str, Any], ctx: dict[str, Any]) -> InlineKeyboardButton | None:
@@ -76,14 +85,36 @@ def _make_button(b: dict[str, Any], ctx: dict[str, Any]) -> InlineKeyboardButton
         text = f"{color_map[b['color']]} {text}"
 
     kwargs: dict[str, Any] = {"text": text}
-    # Стиль (нативный TG Bot API 9.4+)
-    style = b.get("style")
-    if isinstance(style, str) and style.lower() in ALLOWED_STYLES:
-        kwargs["style"] = style.lower()
-    # Премиум-иконка
-    icon = b.get("icon_custom_emoji_id") or b.get("icon")
-    if icon and str(icon).isdigit():
-        kwargs["icon_custom_emoji_id"] = str(icon)
+    # Стиль и premium-иконка — только если ENABLE_STYLES (см. выше)
+    if ENABLE_STYLES:
+        style = b.get("style")
+        if isinstance(style, str) and style.lower() in ALLOWED_STYLES:
+            kwargs["style"] = style.lower()
+        icon = b.get("icon_custom_emoji_id") or b.get("icon")
+        if icon and str(icon).isdigit():
+            kwargs["icon_custom_emoji_id"] = str(icon)
+    # Иначе — эмулируем цвет через эмодзи-кружок в начале текста
+    elif b.get("style") or b.get("color"):
+        style = (b.get("style") or "").lower()
+        color = (b.get("color") or "").lower()
+        emoji_map = {
+            "primary": "🔵",
+            "success": "🟢",
+            "danger": "🔴",
+            "warning": "🟡",
+            "secondary": "⚪",
+            "green": "🟢",
+            "red": "🔴",
+            "yellow": "🟡",
+            "blue": "🔵",
+            "purple": "🟣",
+            "orange": "🟠",
+            "black": "⚫",
+            "white": "⚪",
+        }
+        prefix = emoji_map.get(style) or emoji_map.get(color)
+        if prefix and not text.startswith(prefix):
+            kwargs["text"] = f"{prefix} {text}"
 
     # Действие — взаимоисключающие
     if b.get("url"):
