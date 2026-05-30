@@ -192,9 +192,17 @@
       {
         "id": "intro_gallery", "type": "send_message",
         "params": {
-          "text": "~b:{{vars.ready_word}}?~ ~emoji:5409020441794734300|✨~\n\nСейчас покажу образы по одному.\n\n<b>👇 ЛИСТАЙ кнопками</b> ◀ Назад / Вперёд ▶, отмечай 👍 что нравится."
+          "text": "~b:{{vars.ready_word}}?~ ~emoji:5409020441794734300|✨~\n\nЖми «Готов(а)!», чтобы посмотреть и отметить понравившееся.\nБуду показывать по одному — листай ◀ / ▶ и отмечай 👍.",
+          "buttons": [
+            [
+              {
+                "text": "Готов(а)! ✨",
+                "next": "gallery"
+              }
+            ]
+          ]
         },
-        "next": "gallery", "position": { "x": 1280, "y": 800 }
+        "next": null, "position": { "x": 1280, "y": 800 }
       },
       {
         "id": "gallery", "type": "show_outfits_gallery",
