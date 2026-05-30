@@ -907,54 +907,19 @@ async def send_colored_buttons(
     ctx: ExecutionContext,
     node: dict[str, Any],
 ) -> str | None:
-    """Сообщение с inline-кнопками, где каждая «цветная» через эмодзи.
+    """Сообщение со стилизованными кнопками.
 
-    Telegram не поддерживает реальные цвета inline-кнопок в обычных чатах
-    (style="primary" работает только в DM admin keyboards). Поэтому
-    эмулируем: ставим цветной эмодзи в начало текста кнопки.
-
-    Цвета: green/red/yellow/blue/purple/orange/black/white.
+    Каждая кнопка может иметь:
+      style: primary | success | danger | warning | secondary (Bot API 9.4+)
+      icon_custom_emoji_id: <id> (премиум-эмодзи; видно если у владельца TG Premium)
+      color: green/red/yellow/... (старая эмуляция через эмодзи-кружок —
+             используется ТОЛЬКО если style не задан, для обратной совместимости)
     """
+    from app.bot.runtime.keyboards import build_inline
+
     p = node.get("params") or {}
     text = str(render(p.get("text") or "", ctx.template_ctx))
-    color_map = {
-        "green": "🟢",
-        "red": "🔴",
-        "yellow": "🟡",
-        "blue": "🔵",
-        "purple": "🟣",
-        "orange": "🟠",
-        "black": "⚫",
-        "white": "⚪",
-    }
-    rows: list[list[InlineKeyboardButton]] = []
-    for entry in p.get("buttons") or []:
-        row_entries = entry if isinstance(entry, list) else [entry]
-        row: list[InlineKeyboardButton] = []
-        for b in row_entries:
-            if not isinstance(b, dict):
-                continue
-            color = (b.get("color") or "").lower()
-            prefix = color_map.get(color, "")
-            label = str(render(b.get("text") or "", ctx.template_ctx))
-            full_text = f"{prefix} {label}".strip() if prefix else label
-            if b.get("url"):
-                row.append(InlineKeyboardButton(text=full_text, url=str(b["url"])))
-            elif b.get("copy_text"):
-                row.append(
-                    InlineKeyboardButton(
-                        text=full_text,
-                        copy_text=CopyTextButton(text=str(b["copy_text"])),
-                    )
-                )
-            else:
-                target = b.get("next") or b.get("target") or ""
-                value = b.get("value")
-                cb = f"n:{target}|{value}" if value is not None else f"n:{target}"
-                row.append(InlineKeyboardButton(text=full_text, callback_data=cb[:64]))
-        if row:
-            rows.append(row)
-    kb = InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+    kb = build_inline(p.get("buttons"), ctx.template_ctx)
     await bot.send_message(
         chat_id=ctx.chat_id,
         text=text,

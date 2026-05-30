@@ -42,17 +42,82 @@ def parse_cb(data: str) -> tuple[str, str | None] | None:
     return rest, None
 
 
+# Bot API 9.4+ цвета стилей кнопок
+ALLOWED_STYLES = {"primary", "success", "danger", "warning", "secondary"}
+
+
+def _make_button(b: dict[str, Any], ctx: dict[str, Any]) -> InlineKeyboardButton | None:
+    """Создать InlineKeyboardButton с поддержкой всех современных полей aiogram 3.28:
+
+    text (обяз.), url | callback_data | copy_text | web_app | switch_inline_query,
+    style ("primary"|"success"|"danger"|"warning"|"secondary") — Bot API 9.4+,
+    icon_custom_emoji_id — премиум-эмодзи (видно если у владельца бота TG Premium),
+    color (наша эмуляция через эмодзи-кружок — оставлена для обратной совместимости).
+    """
+    from aiogram.types import CopyTextButton, WebAppInfo
+
+    if not isinstance(b, dict):
+        return None
+    text = str(render(b.get("text") or "", ctx))
+    if not text:
+        return None
+    # Совместимость: префикс-эмодзи через color (для send_colored_buttons)
+    color_map = {
+        "green": "🟢",
+        "red": "🔴",
+        "yellow": "🟡",
+        "blue": "🔵",
+        "purple": "🟣",
+        "orange": "🟠",
+        "black": "⚫",
+        "white": "⚪",
+    }
+    if b.get("color") in color_map and not b.get("style"):
+        text = f"{color_map[b['color']]} {text}"
+
+    kwargs: dict[str, Any] = {"text": text}
+    # Стиль (нативный TG Bot API 9.4+)
+    style = b.get("style")
+    if isinstance(style, str) and style.lower() in ALLOWED_STYLES:
+        kwargs["style"] = style.lower()
+    # Премиум-иконка
+    icon = b.get("icon_custom_emoji_id") or b.get("icon")
+    if icon and str(icon).isdigit():
+        kwargs["icon_custom_emoji_id"] = str(icon)
+
+    # Действие — взаимоисключающие
+    if b.get("url"):
+        kwargs["url"] = str(b["url"])
+    elif b.get("web_app"):
+        kwargs["web_app"] = WebAppInfo(url=str(b["web_app"]))
+    elif b.get("copy_text"):
+        kwargs["copy_text"] = CopyTextButton(text=str(b["copy_text"]))
+    elif b.get("switch_inline_query") is not None:
+        kwargs["switch_inline_query"] = str(b["switch_inline_query"])
+    else:
+        target = b.get("next") or b.get("target")
+        value = b.get("value")
+        kwargs["callback_data"] = cb_for(
+            str(target or ""), str(value) if value is not None else None
+        )
+    try:
+        return InlineKeyboardButton(**kwargs)
+    except Exception:
+        # Откат: если TG/aiogram ругнётся на неподдерживаемое поле (например, старая
+        # версия Telegram-клиента у юзера) — повторяем без style/icon
+        for k in ("style", "icon_custom_emoji_id"):
+            kwargs.pop(k, None)
+        return InlineKeyboardButton(**kwargs)
+
+
 def build_inline(
-    buttons: list[dict[str, Any]] | None,
+    buttons: list[Any] | None,
     ctx: dict[str, Any],
 ) -> InlineKeyboardMarkup | None:
-    """``buttons``: list of either button dicts or list-of-button dicts (rows).
+    """``buttons``: list of button dicts ИЛИ list-of-button dicts (рядов).
 
-    Each button dict supports:
-      * ``text``      (required, template-rendered)
-      * ``next``      (node id to advance to when clicked)
-      * ``value``     (optional, stored in the variable of the *current* ask_question)
-      * ``url``       (open external URL instead of advancing)
+    Поля кнопки (см. _make_button): text, next/target, url, web_app,
+    copy_text, switch_inline_query, value, style, icon_custom_emoji_id, color.
     """
     if not buttons:
         return None
@@ -61,16 +126,9 @@ def build_inline(
         row_entries = entry if isinstance(entry, list) else [entry]
         row: list[InlineKeyboardButton] = []
         for b in row_entries:
-            if not isinstance(b, dict):
-                continue
-            text = str(render(b.get("text") or "", ctx))
-            if b.get("url"):
-                row.append(InlineKeyboardButton(text=text, url=str(b["url"])))
-                continue
-            target = b.get("next") or b.get("target")
-            value = b.get("value")
-            data = cb_for(str(target or ""), str(value) if value is not None else None)
-            row.append(InlineKeyboardButton(text=text, callback_data=data))
+            btn = _make_button(b, ctx)
+            if btn is not None:
+                row.append(btn)
         if row:
             rows.append(row)
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None

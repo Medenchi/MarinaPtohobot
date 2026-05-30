@@ -32,6 +32,7 @@ import {
 } from "@/lib/blockSchemas";
 import { classNames, shortId } from "@/lib/util";
 import { TextField, TextArea, Switch } from "@/components/Field";
+import FormattedTextArea from "@/components/FormattedTextArea";
 import Footer from "@/components/Footer";
 import type { BlockNode, Flow, FlowGraph } from "@/types";
 
@@ -616,12 +617,13 @@ function FieldRenderer({
   }
   if (field.kind === "textarea") {
     return (
-      <TextArea
+      <FormattedTextArea
         label={field.label}
         hint={field.hint}
         placeholder={field.placeholder}
         value={(value as string) || ""}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(v) => onChange(v)}
+        rows={4}
       />
     );
   }
@@ -765,7 +767,7 @@ function OptionsListEditor({
   );
 }
 
-type ButtonRow = { text?: string; next?: string | null; value?: string; url?: string };
+type ButtonRow = { text?: string; next?: string | null; value?: string; url?: string; style?: string; icon_custom_emoji_id?: string; copy_text?: string; web_app?: string };
 function ButtonsEditor({
   label,
   value,
@@ -805,9 +807,43 @@ function ButtonsEditor({
             </div>
             <input
               className="w-full border border-line rounded px-2 py-1 text-xs"
-              placeholder="URL (если нужна ссылочная кнопка)"
+              placeholder="URL (https://... — для ссылочной кнопки)"
               value={row.url || ""}
               onChange={(e) => update(i, { url: e.target.value })}
+            />
+            <div className="grid grid-cols-2 gap-1">
+              <select
+                className="border border-line rounded px-2 py-1 text-xs bg-white"
+                value={row.style || ""}
+                onChange={(e) => update(i, { style: e.target.value || undefined })}
+                title="Цвет кнопки (Bot API 9.4+)"
+              >
+                <option value="">⚪ обычная</option>
+                <option value="primary">🔵 primary (синяя)</option>
+                <option value="success">🟢 success (зелёная)</option>
+                <option value="danger">🔴 danger (красная)</option>
+                <option value="warning">🟡 warning (жёлтая)</option>
+                <option value="secondary">⚫ secondary</option>
+              </select>
+              <input
+                className="border border-line rounded px-2 py-1 text-xs font-mono"
+                placeholder="icon_custom_emoji_id (premium)"
+                value={row.icon_custom_emoji_id || ""}
+                onChange={(e) => update(i, { icon_custom_emoji_id: e.target.value || undefined })}
+                title="ID премиум-эмодзи. Получить: переслать эмодзи @ConvertEmojiBot"
+              />
+            </div>
+            <input
+              className="w-full border border-line rounded px-2 py-1 text-xs"
+              placeholder="copy_text (если кнопка-копирование)"
+              value={row.copy_text || ""}
+              onChange={(e) => update(i, { copy_text: e.target.value || undefined })}
+            />
+            <input
+              className="w-full border border-line rounded px-2 py-1 text-xs"
+              placeholder="web_app URL (https:// для Mini App)"
+              value={row.web_app || ""}
+              onChange={(e) => update(i, { web_app: e.target.value || undefined })}
             />
             <select
               className="w-full border border-line rounded px-2 py-1 text-xs bg-white"

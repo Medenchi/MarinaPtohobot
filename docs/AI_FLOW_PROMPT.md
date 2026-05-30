@@ -499,3 +499,26 @@ Telegram НЕ парсит. Эмодзи можно ставить как обы
 2. **Premium-эмодзи в `text` кнопок** Telegram игнорирует. Только в тексте сообщения.
 3. **Удаление сообщений бота** — только младше 48 часов.
 4. **`ask_poll`** — `is_anonymous` принудительно `false` (иначе нет `poll_answer`).
+
+---
+
+## 🆕 v3: Цветные кнопки и Premium-эмодзи (НАТИВНО)
+
+В любой кнопке (`send_message.buttons[]`, `send_colored_buttons.buttons[]` и т.п.) можно использовать:
+
+* **`style`**: `primary` | `success` | `danger` | `warning` | `secondary`
+  — реальные цветные кнопки Telegram (видно всем без подписок)
+* **`icon_custom_emoji_id`**: числовой ID premium-эмодзи (видно всем,
+  если у владельца бота есть Telegram Premium)
+
+```jsonc
+{
+  "text": "Купить Premium",
+  "style": "success",
+  "icon_custom_emoji_id": "5431843232120012345",
+  "next": "buy"
+}
+```
+
+Эти поля приоритетнее старого `color: "green"` (который эмулировал
+через эмодзи-кружок 🟢).
