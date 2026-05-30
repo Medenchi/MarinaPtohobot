@@ -131,16 +131,46 @@ export default function Outfits() {
     );
   }
 
+  async function generateAIGentOutfits() {
+    setError(null);
+    try {
+      const resp = await fetch("https://api.github.com/repos/Medenchi/MarinaPtohobot/actions/workflows/backend.yml/dispatches", {
+        method: "POST",
+        headers: {
+          "Accept": "application/vnd.github.v3+json",
+          "Authorization": `Bearer ${import.meta.env.VITE_GITHUB_PAT || ""}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ ref: "main" })
+      });
+      if (resp.ok) {
+        alert("Запрос на генерацию 50 случайных образов отправлен!");
+      } else {
+        alert("Ошибка отправки: " + resp.statusText);
+      }
+    } catch (err: any) {
+      alert("Ошибка: " + err.message);
+    }
+  }
+
   return (
     <MamaLayout>
       <div className="flex justify-between items-center mb-4">
         <h2 className="serif-heading text-2xl">Образы</h2>
-        <button
-          onClick={() => void createDraft()}
-          className="btn-primary"
-        >
-          <Plus size={14} weight="thin" /> Добавить образ
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => void generateAIGentOutfits()}
+            className="btn-outline"
+          >
+            Сгенерировать 50 образов
+          </button>
+          <button
+            onClick={() => void createDraft()}
+            className="btn-primary"
+          >
+            <Plus size={14} weight="thin" /> Добавить образ
+          </button>
+        </div>
       </div>
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
       {loading ? (

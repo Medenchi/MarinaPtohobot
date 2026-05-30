@@ -68,7 +68,7 @@ def _download_image(storage_path: str) -> bytes | None:
         return None
     base = settings.supabase_url.rstrip("/")
     bucket = settings.storage_bucket_outfits
-    url = f"{base}/storage/v1/object/public/{bucket}/{storage_path}"
+    url = storage_path if storage_path.startswith("http") else f"{base}/storage/v1/object/public/{bucket}/{storage_path}"
     try:
         with httpx.Client(timeout=20.0) as cli:
             resp = cli.get(url)

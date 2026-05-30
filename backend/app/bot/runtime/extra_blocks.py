@@ -599,7 +599,7 @@ async def send_outfit_card(
     if item.get("external_url"):
         kb_rows.append([InlineKeyboardButton(text="🛍 Купить", url=str(item["external_url"]))])
     if imgs and imgs[0].get("storage_path"):
-        url = f"{base}/storage/v1/object/public/{bucket}/{imgs[0]['storage_path']}"
+        url = imgs[0]["storage_path"] if imgs[0]["storage_path"].startswith("http") else f"{base}/storage/v1/object/public/{bucket}/{imgs[0]['storage_path']}"
         await bot.send_photo(
             chat_id=ctx.chat_id,
             photo=URLInputFile(url),
