@@ -55,8 +55,8 @@ def parse_cb(data: str) -> tuple[str, str | None] | None:
 ALLOWED_STYLES = {"default", "primary", "success", "danger"}
 # Алиасы для совместимости со старыми JSON или интуитивными синонимами
 STYLE_ALIASES = {
-    "warning": "danger",       # жёлтого нет — даём красный
-    "secondary": "default",    # серый = default
+    "warning": "danger",  # жёлтого нет — даём красный
+    "secondary": "default",  # серый = default
     "blue": "primary",
     "green": "success",
     "red": "danger",

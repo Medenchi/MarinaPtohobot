@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
-import { statsEvents, statsOverview, type StatsCounts } from "@/lib/api";
+import { statsDeeplinks, statsEvents, statsOverview, type DeeplinkStat, type StatsCounts } from "@/lib/api";
 import MamaLayout from "./Layout";
 
 export default function Stats() {
   const [stats, setStats] = useState<StatsCounts | null>(null);
   const [events, setEvents] = useState<Record<string, number>>({});
+  const [deeplinks, setDeeplinks] = useState<DeeplinkStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([statsOverview("mama"), statsEvents("mama")])
-      .then(([s, e]) => {
+    Promise.all([statsOverview("mama"), statsEvents("mama"), statsDeeplinks("mama")])
+      .then(([s, e, d]) => {
         setStats(s);
         setEvents(e);
+        setDeeplinks(d);
       })
       .catch((err) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
@@ -59,6 +61,42 @@ export default function Stats() {
               </li>
             ))}
         </ul>
+      )}
+
+      <h3 className="text-xs uppercase tracking-tighter text-muted mb-2 mt-6">
+        🔗 Источники переходов (deep-links)
+      </h3>
+      {deeplinks.length === 0 ? (
+        <p className="card text-sm text-muted">
+          Никто ещё не переходил по реферальной ссылке. Используй формат:<br />
+          <code className="text-xs">t.me/{`{bot_username}`}?start=ref_pin_42</code> — где
+          <code className="text-xs">ref_pin_42</code> — любой id (для каждого поста в Pinterest свой).
+        </p>
+      ) : (
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted border-b border-line">
+                <th className="py-1 pr-3">Ref</th>
+                <th className="py-1 pr-3 text-right">Запусков</th>
+                <th className="py-1 pr-3 text-right">Уникальных</th>
+                <th className="py-1 pr-3 text-right">Последний</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deeplinks.map((d) => (
+                <tr key={d.ref} className="border-b border-line/30 last:border-0">
+                  <td className="py-2 pr-3 font-mono text-xs">{d.ref}</td>
+                  <td className="py-2 pr-3 text-right font-medium">{d.count}</td>
+                  <td className="py-2 pr-3 text-right text-muted">{d.unique_users}</td>
+                  <td className="py-2 pr-3 text-right text-xs text-muted">
+                    {new Date(d.last_at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </MamaLayout>
   );

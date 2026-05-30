@@ -592,3 +592,33 @@ export async function tgSetMyProfilePhoto(token: string, file: File): Promise<un
   if (!j.ok) throw new Error(j.description || "setMyProfilePhoto failed");
   return j.result;
 }
+
+export interface DeeplinkStat {
+  ref: string;
+  count: number;
+  unique_users: number;
+  last_at: string;
+}
+
+export async function statsDeeplinks(role: "admin" | "mama" = "admin"): Promise<DeeplinkStat[]> {
+  const { data, error } = await getSupabase(role)
+    .from("bot_events")
+    .select("payload, telegram_id, created_at")
+    .eq("event_type", "deeplink")
+    .order("created_at", { ascending: false })
+    .limit(5000);
+  if (error) throw error;
+  const map = new Map<string, { count: number; users: Set<number>; last_at: string }>();
+  for (const row of (data as { payload: { ref?: string }; telegram_id: number; created_at: string }[]) ?? []) {
+    const ref = row.payload?.ref || "(пусто)";
+    if (!map.has(ref)) map.set(ref, { count: 0, users: new Set(), last_at: row.created_at });
+    const e = map.get(ref)!;
+    e.count++;
+    if (row.telegram_id) e.users.add(row.telegram_id);
+    if (row.created_at > e.last_at) e.last_at = row.created_at;
+  }
+  return Array.from(map.entries())
+    .map(([ref, v]) => ({ ref, count: v.count, unique_users: v.users.size, last_at: v.last_at }))
+    .sort((a, b) => b.count - a.count);
+}
+

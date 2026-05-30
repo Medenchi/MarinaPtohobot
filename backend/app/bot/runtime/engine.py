@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from aiogram import Bot, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message, PollAnswer
 
 from app.bot.runtime import blocks, registry, state
@@ -128,12 +128,18 @@ def make_router() -> Router:
     @router.message(CommandStart(deep_link=True))
     @router.message(CommandStart())
     @router.message(Command(commands=["help", "menu", "reset", "stop"]))
-    async def on_command(message: Message) -> None:
-        await _handle_message(message, command_hint=_extract_command(message.text))
+    async def on_command(message: Message, command: CommandObject = None) -> None:
+        # Deep-link payload: /start ref_pin_42 → command.args = "ref_pin_42"
+        deeplink = command.args if command and command.args else None
+        await _handle_message(
+            message,
+            command_hint=_extract_command(message.text),
+            deeplink=deeplink,
+        )
 
     @router.message()
     async def on_any_message(message: Message) -> None:
-        await _handle_message(message, command_hint=_extract_command(message.text))
+        await _handle_message(message, command_hint=_extract_command(message.text), deeplink=None)
 
     @router.callback_query()
     async def on_callback(cq: CallbackQuery) -> None:
@@ -153,30 +159,46 @@ async def _handle_poll_answer(answer: PollAnswer) -> None:
     bot = answer.bot
     tg_user = answer.user
     state.upsert_bot_user(tg_user)
-    # У PollAnswer нет chat — используем user_id (только private polls работают как опросники)
-    ctx = await _make_ctx(bot, tg_user.id, tg_user)
-    if ctx is None:
-        return
-    poll_map = ctx.vars.get("_pending_polls") or {}
+    # Грузим сессию пользователя напрямую (poll_answer не приходит с chat)
+    session = state.load(tg_user.id)
+    poll_map = session.vars.get("_pending_polls") or {}
     info = poll_map.get(answer.poll_id)
     if not info:
+        log.debug("poll_answer без pending poll %s", answer.poll_id)
         return
     options = info.get("options") or []
     chosen = [options[i] for i in (answer.option_ids or []) if 0 <= i < len(options)]
     if info.get("multiple"):
-        ctx.vars[info["variable"]] = chosen
+        session.vars[info["variable"]] = chosen
     else:
-        ctx.vars[info["variable"]] = chosen[0] if chosen else ""
+        session.vars[info["variable"]] = chosen[0] if chosen else ""
     # снимаем pending
     del poll_map[answer.poll_id]
-    ctx.vars["_pending_polls"] = poll_map
+    session.vars["_pending_polls"] = poll_map
+    # Восстанавливаем chat_id из сохранённого
+    chat_id = info.get("chat_id") or tg_user.id
     # Идём в next
-    node = ctx.nodes.get(info["node_id"])
+    flow = registry.published_flow()
+    if not flow:
+        state.save(session)
+        return
+    graph = flow.get("graph") or {}
+    nodes = registry.index_nodes(graph)
+    node = nodes.get(info["node_id"])
     next_id = node.get("next") if node else None
-    ctx.session.awaiting_input = False
+    session.awaiting_input = False
+    session.flow_id = flow["id"]
     if next_id:
+        ctx = ExecutionContext(
+            chat_id=chat_id,
+            session=session,
+            tg_user=state.user_to_vars(tg_user),
+            flow_id=flow["id"],
+            graph=graph,
+            nodes=nodes,
+        )
         await _execute_from(bot, ctx, next_id)
-    state.save(ctx.session)
+    state.save(session)
 
 
 def _extract_command(text: str | None) -> str | None:
@@ -187,7 +209,12 @@ def _extract_command(text: str | None) -> str | None:
     return cmd or None
 
 
-async def _handle_message(message: Message, *, command_hint: str | None) -> None:
+async def _handle_message(
+    message: Message,
+    *,
+    command_hint: str | None,
+    deeplink: str | None = None,
+) -> None:
     if not message.from_user or not message.chat:
         return
     bot = message.bot
@@ -209,7 +236,6 @@ async def _handle_message(message: Message, *, command_hint: str | None) -> None
             # Reset vars on /start unless the trigger explicitly opts out.
             if command_hint == "start" and not (trig.get("params") or {}).get("keep_vars"):
                 ctx.session.vars = {}
-                # Re-build context now that vars are reset
                 ctx = ExecutionContext(
                     chat_id=ctx.chat_id,
                     session=ctx.session,
@@ -217,6 +243,18 @@ async def _handle_message(message: Message, *, command_hint: str | None) -> None
                     flow_id=ctx.flow_id,
                     graph=ctx.graph,
                     nodes=ctx.nodes,
+                )
+            # Если в /start был payload (deep-link) — пишем его в vars и логируем
+            if deeplink:
+                ctx.vars["ref"] = deeplink
+                ctx.vars["deeplink"] = deeplink
+                state.log_event(
+                    telegram_id=ctx.tg_user.get("id"),
+                    telegram_username=ctx.tg_user.get("username"),
+                    flow_id=ctx.flow_id,
+                    node_id=target_node_id,
+                    event_type="deeplink",
+                    payload={"ref": deeplink},
                 )
 
     # 2) Mid-question answer: capture text and resume.
