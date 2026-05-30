@@ -823,6 +823,8 @@ async def ask_poll(
             "node_id": node["id"],
             "options": options,
             "multiple": bool(p.get("multiple", False)),
+            "chat_id": ctx.chat_id,
+            "telegram_id": ctx.session.telegram_id,
         }
     ctx.session.awaiting_input = True
     return None
