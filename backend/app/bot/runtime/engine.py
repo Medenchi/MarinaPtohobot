@@ -293,13 +293,97 @@ async def _handle_message(
     state.save(ctx.session)
 
 
+async def _handle_gallery_callback(cq: CallbackQuery, raw_data: str) -> None:
+    """Обработка кнопок ◀/▶/like/skip/done в show_outfits_gallery.
+
+    Формат: gal:<node_id>:<action>
+    """
+    from app.bot.runtime._gallery_blocks import _send_gallery_card
+
+    if not cq.from_user or not cq.message or not cq.message.chat:
+        return
+    bot = cq.bot
+    if bot is None:
+        return
+    parts = raw_data.split(":", 2)
+    if len(parts) < 3:
+        await cq.answer()
+        return
+    _, node_id, action = parts
+
+    state.upsert_bot_user(cq.from_user)
+    ctx = await _make_ctx(bot, cq.message.chat.id, cq.from_user)
+    if ctx is None:
+        await cq.answer()
+        return
+    node = ctx.nodes.get(node_id)
+    if not node:
+        await cq.answer("Узел не найден", show_alert=True)
+        return
+
+    p = node.get("params") or {}
+    items_key = p.get("items_var") or "matched_outfits"
+    items = ctx.vars.get(items_key) or []
+    if not isinstance(items, list) or not items:
+        await cq.answer("Образы кончились")
+        return
+
+    idx_var = f"_gallery_idx_{node_id}"
+    cur_idx = int(ctx.vars.get(idx_var) or 0)
+    total = len(items)
+    liked_var = p.get("liked_var") or "liked_ids"
+    disliked_var = p.get("disliked_var") or "disliked_ids"
+    msg_id = cq.message.message_id
+
+    if action == "prev":
+        new_idx = (cur_idx - 1) % total
+        ctx.vars[idx_var] = new_idx
+        await _send_gallery_card(bot, ctx, node, items, new_idx, edit_message_id=msg_id)
+        await cq.answer()
+    elif action == "next":
+        new_idx = (cur_idx + 1) % total
+        ctx.vars[idx_var] = new_idx
+        await _send_gallery_card(bot, ctx, node, items, new_idx, edit_message_id=msg_id)
+        await cq.answer()
+    elif action in ("like", "skip"):
+        cur_item = items[cur_idx]
+        oid = cur_item.get("id")
+        arr = ctx.vars.setdefault(liked_var if action == "like" else disliked_var, [])
+        try:
+            oid_int = int(oid)
+        except (TypeError, ValueError):
+            oid_int = oid
+        if oid_int not in arr:
+            arr.append(oid_int)
+        await cq.answer("👍 запомнила!" if action == "like" else "ок, мимо")
+        # Сразу к следующему
+        new_idx = (cur_idx + 1) % total
+        ctx.vars[idx_var] = new_idx
+        await _send_gallery_card(bot, ctx, node, items, new_idx, edit_message_id=msg_id)
+    elif action == "done":
+        await cq.answer("Собираю PDF…")
+        next_id = node.get("next")
+        if next_id:
+            await _execute_from(bot, ctx, next_id)
+    else:
+        await cq.answer()
+    state.save(ctx.session)
+
+
 async def _handle_callback(cq: CallbackQuery) -> None:
     if not cq.from_user or not cq.message or not cq.message.chat:
         return
     bot = cq.bot
     if bot is None:
         return
-    parsed = parse_cb(cq.data or "")
+    raw_data = cq.data or ""
+
+    # ====== Перехват: callback галереи (gal:<node_id>:action) ======
+    if raw_data.startswith("gal:"):
+        await _handle_gallery_callback(cq, raw_data)
+        return
+
+    parsed = parse_cb(raw_data)
     if parsed is None:
         await cq.answer()
         return

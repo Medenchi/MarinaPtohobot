@@ -263,6 +263,96 @@ def generate_pdf_sections(
     return buf.getvalue()
 
 
+def _draw_grid_page(
+    c: canvas.Canvas, outfits_chunk: list[dict[str, Any]], *, page_num: int, total_pages: int
+) -> None:
+    """Сетка 2x2 = 4 образа на одну страницу A4. Для экономной печати."""
+    # 2 колонки, 2 ряда
+    gap = 10
+    title_h = 24  # высота заголовка снизу карточки
+    cell_w = (PAGE_W - 2 * MARGIN - gap) / 2
+    cell_h = (PAGE_H - 2 * MARGIN - gap - 30) / 2  # -30 на footer
+
+    # Маленький заголовок страницы сверху
+    c.setFillColor(MUTED)
+    c.setFont(_FONT, 8)
+    c.drawString(
+        MARGIN, PAGE_H - MARGIN + 6, f"Подборка для печати  ·  стр. {page_num} из {total_pages}"
+    )
+    c.setStrokeColor(LINE if False else PAPER)
+
+    for idx, outfit in enumerate(outfits_chunk[:4]):
+        col = idx % 2
+        row = idx // 2
+        x = MARGIN + col * (cell_w + gap)
+        y = PAGE_H - MARGIN - 16 - (row + 1) * cell_h - row * gap  # координата нижнего края ячейки
+
+        # фото в верхней части ячейки
+        img_h = cell_h - title_h
+        images = outfit.get("outfit_images") or []
+        drawn = False
+        if images:
+            blob = _download_image(images[0].get("storage_path") or "")
+            if blob:
+                try:
+                    ir = ImageReader(io.BytesIO(blob))
+                    iw, ih = ir.getSize()
+                    ratio = min(cell_w / iw, img_h / ih)
+                    dw, dh = iw * ratio, ih * ratio
+                    ox = x + (cell_w - dw) / 2
+                    oy = y + title_h + (img_h - dh) / 2
+                    c.drawImage(
+                        ir, ox, oy, width=dw, height=dh, preserveAspectRatio=True, mask="auto"
+                    )
+                    drawn = True
+                except Exception as exc:
+                    log.warning("grid image draw failed: %s", exc)
+        if not drawn:
+            c.setFillColor(PAPER)
+            c.rect(x, y + title_h, cell_w, img_h, stroke=0, fill=1)
+            c.setFillColor(MUTED)
+            c.setFont(_FONT, 8)
+            c.drawCentredString(x + cell_w / 2, y + title_h + img_h / 2, "нет фото")
+
+        # заголовок под фото
+        title = str(outfit.get("title") or "Образ")
+        c.setFillColor(INK)
+        c.setFont(_FONT_BOLD, 9)
+        c.drawString(x + 4, y + 8, title[:32])
+
+    # бренд внизу
+    c.setFillColor(ACCENT)
+    c.setFont(_FONT_BOLD, 7)
+    c.drawCentredString(PAGE_W / 2, MARGIN - 8, "MARINA ZAUGOLNIKOVA")
+
+
+def generate_pdf_grid(
+    *,
+    outfits: list[dict[str, Any]],
+    client_username: str,
+    bot_username: str,
+) -> bytes:
+    """4 образа на странице A4 — экономная печать (раскадровка)."""
+    _ensure_fonts()
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setTitle(f"{settings.brand_name} — Раскадровка для печати")
+    when = datetime.now(tz=UTC).strftime("%d.%m.%Y")
+    _draw_cover(c, client=client_username, when=when, total=len(outfits))
+    c.showPage()
+    per_page = 4
+    pages = (len(outfits) + per_page - 1) // per_page
+    for p in range(pages):
+        chunk = outfits[p * per_page : (p + 1) * per_page]
+        _draw_grid_page(c, chunk, page_num=p + 1, total_pages=pages)
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+LINE = HexColor("#e6e1d8")
+
+
 def upload_pdf(blob: bytes, *, telegram_id: int) -> str:
     sb = get_supabase()
     ts = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")

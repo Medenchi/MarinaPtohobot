@@ -987,3 +987,12 @@ EXTRA_BLOCKS.update(
         "send_colored_buttons": send_colored_buttons,
     }
 )
+
+# ---- Подключение галереи и PDF-grid из _gallery_blocks ----
+from app.bot.runtime._gallery_blocks import (  # noqa: E402
+    generate_pdf_grid_block,
+    show_outfits_gallery,
+)
+
+EXTRA_BLOCKS["generate_pdf_grid"] = generate_pdf_grid_block
+EXTRA_BLOCKS["show_outfits_gallery"] = show_outfits_gallery
