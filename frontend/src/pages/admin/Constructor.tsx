@@ -460,6 +460,7 @@ export default function Constructor() {
         <aside>
           {selected ? (
             <Inspector
+              key={selected.id}
               node={selected}
               allNodes={flow.graph.nodes}
               onChange={(patch) => updateNode(selected.id, patch)}
@@ -562,16 +563,30 @@ function Inspector({
 }) {
   const schema = schemaFor(node.type);
   const otherNodes = useMemo(() => allNodes.filter((n) => n.id !== node.id), [allNodes, node.id]);
+  const schemaKeys = useMemo(
+    () => new Set((schema?.fields || []).map((f) => f.key)),
+    [schema],
+  );
+  // Ключи params, которых нет в schema — показываем как raw JSON-редакторы,
+  // чтобы импортированные флоу с неизвестными типами не превращались в «пусто».
+  const extraKeys = Object.keys(node.params || {}).filter((k) => !schemaKeys.has(k));
+  const [showRaw, setShowRaw] = useState(false);
 
   return (
     <div className="card space-y-3 sticky top-4">
       <div>
         <h3 className="serif-heading text-lg">{schema?.title || node.type}</h3>
-        <p className="text-xs text-muted">{schema?.description}</p>
+        {schema?.description ? (
+          <p className="text-xs text-muted">{schema.description}</p>
+        ) : (
+          <p className="text-xs text-amber-600">
+            ⚠ Неизвестный тип блока «{node.type}». Редактируется как сырой JSON.
+          </p>
+        )}
         <p className="text-[10px] text-muted font-mono mt-1">id: {node.id}</p>
       </div>
 
-      {schema?.hasNext && (
+      {schema?.hasNext !== false && (
         <NodeRef
           label="Следующий блок"
           value={(node.next as string | null) ?? null}
@@ -580,7 +595,7 @@ function Inspector({
         />
       )}
 
-      {schema?.fields.map((f) => (
+      {(schema?.fields || []).map((f) => (
         <FieldRenderer
           key={f.key}
           field={f}
@@ -589,6 +604,91 @@ function Inspector({
           allNodes={otherNodes}
         />
       ))}
+
+      {/* Лишние / неизвестные ключи params — редакторы JSON */}
+      {extraKeys.length > 0 && (
+        <details open className="border border-amber-300 bg-amber-50 rounded p-2">
+          <summary className="cursor-pointer text-xs text-amber-700 font-medium">
+            Дополнительные params ({extraKeys.length}) — не описаны в схеме
+          </summary>
+          <div className="mt-2 space-y-2">
+            {extraKeys.map((k) => (
+              <RawJsonField
+                key={k}
+                label={k}
+                value={node.params[k]}
+                onChange={(v) => onParam(k, v)}
+              />
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/* Raw JSON всего node — для аварийного редактирования */}
+      <details className="border border-line rounded p-2">
+        <summary
+          className="cursor-pointer text-[10px] text-muted hover:text-ink"
+          onClick={() => setShowRaw((v) => !v)}
+        >
+          {showRaw ? "▾" : "▸"} Сырой JSON узла
+        </summary>
+        <pre className="text-[10px] mt-1 bg-paper p-2 rounded overflow-auto max-h-60 font-mono">
+          {JSON.stringify(node, null, 2)}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
+/** Редактор произвольного значения как JSON-строки. Для unknown params. */
+function RawJsonField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  const isObj = value && typeof value === "object";
+  const initial = isObj ? JSON.stringify(value, null, 2) : (value ?? "") as string;
+  const [text, setText] = useState(String(initial));
+  const [err, setErr] = useState<string | null>(null);
+
+  function commit(t: string) {
+    setText(t);
+    if (isObj || t.trim().startsWith("{") || t.trim().startsWith("[")) {
+      try {
+        onChange(JSON.parse(t));
+        setErr(null);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "JSON error");
+      }
+    } else {
+      onChange(t);
+      setErr(null);
+    }
+  }
+  return (
+    <div>
+      <span className="block text-[10px] uppercase tracking-tighter text-muted mb-0.5 font-mono">
+        {label}
+      </span>
+      {isObj ? (
+        <textarea
+          rows={Math.min(8, text.split("\n").length + 1)}
+          value={text}
+          onChange={(e) => commit(e.target.value)}
+          className="w-full border border-line rounded px-2 py-1 text-[11px] font-mono"
+        />
+      ) : (
+        <input
+          value={text}
+          onChange={(e) => commit(e.target.value)}
+          className="w-full border border-line rounded px-2 py-1 text-xs"
+        />
+      )}
+      {err && <p className="text-[10px] text-red-600 mt-0.5">{err}</p>}
     </div>
   );
 }

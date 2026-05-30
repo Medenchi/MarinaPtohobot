@@ -165,6 +165,25 @@ export function validateGraph(graph: FlowGraph): Issue[] {
         if (t) stack.push(t);
       }
     }
+    if (n.type === "switch") {
+      const p = (n.params as Record<string, unknown>) || {};
+      const cases = (p.cases as Record<string, string>) || {};
+      for (const t of Object.values(cases)) if (t) stack.push(t);
+      const def = p.default as string | undefined;
+      if (def) stack.push(def);
+    }
+    if (n.type === "random_branch") {
+      const p = (n.params as Record<string, unknown>) || {};
+      const choices = (p.choices as Array<string | { next?: string }>) || [];
+      for (const c of choices) {
+        const t = typeof c === "string" ? c : c?.next;
+        if (t) stack.push(t);
+      }
+    }
+    if (n.type === "goto") {
+      const t = ((n.params as Record<string, unknown>)?.next) as string | undefined;
+      if (t) stack.push(t);
+    }
   }
   for (const n of nodes) {
     if (!n.id || TRIGGER_TYPES.has(n.type)) continue;
@@ -197,13 +216,21 @@ const LIGHT_TAG_RE = /~(\w+):([^~]+)~/g;
 export function checkLightFormat(text: string, nodeId: string | null): Issue[] {
   if (!text || typeof text !== "string" || !text.includes("~")) return [];
   const out: Issue[] = [];
-  const tildes = (text.match(/~/g) || []).length;
-  if (tildes % 2 !== 0) {
+  // Сначала «выжимаем» все валидные теги (поддержка вложения через многопроходную замену)
+  let stripped = text;
+  const stripRe = new RegExp(LIGHT_TAG_RE);
+  for (let i = 0; i < 8; i++) {
+    const next = stripped.replace(stripRe, "X");
+    if (next === stripped) break;
+    stripped = next;
+  }
+  const remaining = (stripped.match(/~/g) || []).length;
+  if (remaining % 2 !== 0) {
     out.push({
       level: "warning",
       node_id: nodeId,
       code: "format_unclosed",
-      message: `Нечётное число «~» (${tildes}) — где-то не закрыта разметка`,
+      message: `Нечётное число «~» (${remaining} остались) — где-то не закрыта разметка`,
     });
   }
   let m: RegExpExecArray | null;

@@ -67,15 +67,43 @@ def _is_fk_violation(exc: Exception, constraint_hint: str = "bot_sessions_flow_i
     return code == "23503" or "23503" in msg or constraint_hint in msg
 
 
+def _is_missing_column(exc: Exception) -> bool:
+    """PGRST204 — postgrest не нашёл колонки в schema cache."""
+    code = getattr(exc, "code", None) or ""
+    msg = (getattr(exc, "message", "") or "") + " " + str(exc)
+    return code == "PGRST204" or "PGRST204" in msg or "Could not find the" in msg
+
+
 def save(session: Session) -> None:
-    """Upsert the session, healing stale ``flow_id`` references on the fly."""
+    """Upsert the session, healing stale ``flow_id`` references on the fly.
+
+    Если миграция 0011 не применена и колонки `bot_message_ids` нет —
+    стираем её из payload и пробуем заново.
+    """
     sb = get_supabase()
+    row = session.to_row()
+
+    def _do_upsert(r: dict) -> None:
+        sb.table("bot_sessions").upsert(r, on_conflict="telegram_id").execute()
+
     try:
-        sb.table("bot_sessions").upsert(
-            session.to_row(),
-            on_conflict="telegram_id",
-        ).execute()
+        _do_upsert(row)
+        return
     except Exception as exc:
+        if _is_missing_column(exc):
+            log.warning(
+                "bot_sessions: missing column — retrying without bot_message_ids. "
+                "Apply migration 0011_bot_sessions_message_ids.sql in Supabase."
+            )
+            row.pop("bot_message_ids", None)
+            try:
+                _do_upsert(row)
+                return
+            except Exception as exc2:
+                if _is_fk_violation(exc2):
+                    exc = exc2
+                else:
+                    raise
         if not _is_fk_violation(exc):
             raise
         # Stale published-flow id (was deleted from bot_flows). Reset & retry.

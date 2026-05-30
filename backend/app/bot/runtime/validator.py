@@ -214,6 +214,28 @@ def validate_graph(graph: dict[str, Any]) -> list[Issue]:
                 t = (n.get("params") or {}).get(k)
                 if t:
                     stack.append(t)
+        # switch: cases (dict value->id) + default
+        if n.get("type") == "switch":
+            p = n.get("params") or {}
+            cases = p.get("cases") or {}
+            if isinstance(cases, dict):
+                for t in cases.values():
+                    if t:
+                        stack.append(t)
+            if p.get("default"):
+                stack.append(p["default"])
+        # random_branch: choices (list of id or {next:id})
+        if n.get("type") == "random_branch":
+            for c in (n.get("params") or {}).get("choices") or []:
+                if isinstance(c, str):
+                    stack.append(c)
+                elif isinstance(c, dict) and c.get("next"):
+                    stack.append(c["next"])
+        # goto: params.next
+        if n.get("type") == "goto":
+            t = (n.get("params") or {}).get("next")
+            if t:
+                stack.append(t)
 
     for nid in node_by_id:
         n = node_by_id[nid]
