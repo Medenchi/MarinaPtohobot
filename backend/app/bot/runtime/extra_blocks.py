@@ -31,6 +31,8 @@ from aiogram.types import (
     WebAppInfo,
 )
 
+from app.bot.runtime.middleware import clear as msgid_clear
+from app.bot.runtime.middleware import get_recent, pop_last
 from app.bot.runtime.vars import render
 from app.core.config import settings
 from app.core.supabase import get_supabase
@@ -725,3 +727,226 @@ EXTRA_BLOCKS: dict[str, Any] = {
     "send_outfit_grid": send_outfit_grid,
     "show_random_outfit": show_random_outfit,
 }
+
+
+# ============================================================================
+# УПРАВЛЕНИЕ СООБЩЕНИЯМИ (удаление, авто-очистка)
+# ============================================================================
+
+
+async def remember_message_id(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    """No-op: для совместимости. На самом деле движок и так сохраняет
+    последний message_id в session.last_message_id (см. engine.py).
+    """
+    return _advance(node)
+
+
+async def delete_last_message(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    """Удалить последние N сообщений бота. Защита от наслоения карточек."""
+    p = node.get("params") or {}
+    count = int(p.get("count") or 1)
+    # Берём из RAM-кэша middleware (актуальнее, чем session)
+    ram = pop_last(ctx.chat_id, count)
+    persisted = ctx.session.bot_message_ids or []
+    to_delete = list(dict.fromkeys(ram + persisted[-count:]))[:count]
+    for mid in to_delete:
+        try:
+            await bot.delete_message(chat_id=ctx.chat_id, message_id=mid)
+        except Exception as exc:
+            log.debug("delete_message %s failed: %s", mid, exc)
+    if persisted:
+        ctx.session.bot_message_ids = persisted[:-count] if count <= len(persisted) else []
+    return _advance(node)
+
+
+async def clear_chat(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    """Удалить ВСЕ сообщения бота за текущую сессию. TG-лимит: 48 ч."""
+    all_ids = list(dict.fromkeys(get_recent(ctx.chat_id) + (ctx.session.bot_message_ids or [])))
+    for mid in all_ids:
+        try:
+            await bot.delete_message(chat_id=ctx.chat_id, message_id=mid)
+        except Exception as exc:
+            log.debug("delete_message %s failed: %s", mid, exc)
+    msgid_clear(ctx.chat_id)
+    ctx.session.bot_message_ids = []
+    return _advance(node)
+
+
+# ============================================================================
+# POLL КАК ВОПРОС (с сохранением ответа в vars)
+# ============================================================================
+
+
+async def ask_poll(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    """Telegram-опрос, который ставит флоу на паузу.
+
+    Когда юзер голосует, приходит update poll_answer — engine ловит и
+    пишет результат в vars[variable], потом advance.
+    """
+    p = node.get("params") or {}
+    question = str(render(p.get("question") or "?", ctx.template_ctx))
+    options = [str(render(o, ctx.template_ctx)) for o in (p.get("options") or [])]
+    variable = str(p.get("variable") or "").strip()
+    if not options or not variable:
+        return _advance(node)
+
+    msg = await bot.send_poll(
+        chat_id=ctx.chat_id,
+        question=question,
+        options=options,
+        is_anonymous=False,  # обязательно False — иначе poll_answer не придёт
+        allows_multiple_answers=bool(p.get("multiple", False)),
+    )
+    # Сохраняем poll_id → (variable, node_id, options) для последующего матчинга
+    poll_map = ctx.vars.setdefault("_pending_polls", {})
+    if msg.poll:
+        poll_map[msg.poll.id] = {
+            "variable": variable,
+            "node_id": node["id"],
+            "options": options,
+            "multiple": bool(p.get("multiple", False)),
+        }
+    ctx.session.awaiting_input = True
+    return None
+
+
+# ============================================================================
+# БОТ УПРАВЛЯЕТ СОБОЙ (имя, описание, аватарка)
+# ============================================================================
+
+
+async def set_bot_name(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    p = node.get("params") or {}
+    name = str(render(p.get("name") or "", ctx.template_ctx))[:64]
+    lang = str(p.get("language_code") or "")
+    if name:
+        try:
+            await bot.set_my_name(name=name, language_code=lang or None)
+        except Exception as exc:
+            log.warning("set_my_name failed: %s", exc)
+    return _advance(node)
+
+
+async def set_bot_description(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    p = node.get("params") or {}
+    desc = str(render(p.get("description") or "", ctx.template_ctx))[:512]
+    lang = str(p.get("language_code") or "")
+    try:
+        await bot.set_my_description(description=desc, language_code=lang or None)
+    except Exception as exc:
+        log.warning("set_my_description failed: %s", exc)
+    return _advance(node)
+
+
+async def set_bot_short_description(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    p = node.get("params") or {}
+    desc = str(render(p.get("short_description") or "", ctx.template_ctx))[:120]
+    lang = str(p.get("language_code") or "")
+    try:
+        await bot.set_my_short_description(
+            short_description=desc,
+            language_code=lang or None,
+        )
+    except Exception as exc:
+        log.warning("set_my_short_description failed: %s", exc)
+    return _advance(node)
+
+
+async def set_bot_avatar(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    """aiogram 3.27+: bot.set_my_profile_photo(photo=URLInputFile(url))."""
+    p = node.get("params") or {}
+    url = str(render(p.get("url") or "", ctx.template_ctx))
+    if not url:
+        return _advance(node)
+    try:
+        await bot.set_my_profile_photo(photo=URLInputFile(url))
+    except Exception as exc:
+        log.warning("set_my_profile_photo failed: %s", exc)
+    return _advance(node)
+
+
+# ============================================================================
+# КНОПКИ С «ЦВЕТОМ» (эмулируется через эмодзи-индикатор)
+# ============================================================================
+
+
+async def send_colored_buttons(
+    bot: Bot,
+    ctx: ExecutionContext,
+    node: dict[str, Any],
+) -> str | None:
+    """Сообщение со стилизованными кнопками.
+
+    Каждая кнопка может иметь:
+      style: primary | success | danger | warning | secondary (Bot API 9.4+)
+      icon_custom_emoji_id: <id> (премиум-эмодзи; видно если у владельца TG Premium)
+      color: green/red/yellow/... (старая эмуляция через эмодзи-кружок —
+             используется ТОЛЬКО если style не задан, для обратной совместимости)
+    """
+    from app.bot.runtime.keyboards import build_inline
+
+    p = node.get("params") or {}
+    text = str(render(p.get("text") or "", ctx.template_ctx))
+    kb = build_inline(p.get("buttons"), ctx.template_ctx)
+    await bot.send_message(
+        chat_id=ctx.chat_id,
+        text=text,
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+    return _advance(node)
+
+
+# ============================================================================
+# Registry — расширяем EXTRA_BLOCKS
+# ============================================================================
+
+EXTRA_BLOCKS.update(
+    {
+        # Управление сообщениями
+        "remember_message_id": remember_message_id,
+        "delete_last_message": delete_last_message,
+        "clear_chat": clear_chat,
+        # Poll-вопрос
+        "ask_poll": ask_poll,
+        # Бот меняет себя
+        "set_bot_name": set_bot_name,
+        "set_bot_description": set_bot_description,
+        "set_bot_short_description": set_bot_short_description,
+        "set_bot_avatar": set_bot_avatar,
+        # Цветные кнопки (через эмодзи)
+        "send_colored_buttons": send_colored_buttons,
+    }
+)

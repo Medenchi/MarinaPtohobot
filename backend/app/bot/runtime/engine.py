@@ -18,7 +18,7 @@ from typing import Any
 
 from aiogram import Bot, Router
 from aiogram.filters import Command, CommandStart
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, PollAnswer
 
 from app.bot.runtime import blocks, registry, state
 from app.bot.runtime.keyboards import parse_cb
@@ -139,7 +139,44 @@ def make_router() -> Router:
     async def on_callback(cq: CallbackQuery) -> None:
         await _handle_callback(cq)
 
+    @router.poll_answer()
+    async def on_poll_answer(answer: PollAnswer) -> None:
+        await _handle_poll_answer(answer)
+
     return router
+
+
+async def _handle_poll_answer(answer: PollAnswer) -> None:
+    """Обработка голосов в Telegram-опросах из блока ask_poll."""
+    if not answer.user or not answer.bot:
+        return
+    bot = answer.bot
+    tg_user = answer.user
+    state.upsert_bot_user(tg_user)
+    # У PollAnswer нет chat — используем user_id (только private polls работают как опросники)
+    ctx = await _make_ctx(bot, tg_user.id, tg_user)
+    if ctx is None:
+        return
+    poll_map = ctx.vars.get("_pending_polls") or {}
+    info = poll_map.get(answer.poll_id)
+    if not info:
+        return
+    options = info.get("options") or []
+    chosen = [options[i] for i in (answer.option_ids or []) if 0 <= i < len(options)]
+    if info.get("multiple"):
+        ctx.vars[info["variable"]] = chosen
+    else:
+        ctx.vars[info["variable"]] = chosen[0] if chosen else ""
+    # снимаем pending
+    del poll_map[answer.poll_id]
+    ctx.vars["_pending_polls"] = poll_map
+    # Идём в next
+    node = ctx.nodes.get(info["node_id"])
+    next_id = node.get("next") if node else None
+    ctx.session.awaiting_input = False
+    if next_id:
+        await _execute_from(bot, ctx, next_id)
+    state.save(ctx.session)
 
 
 def _extract_command(text: str | None) -> str | None:

@@ -30,6 +30,7 @@ class Session:
     current_node_id: str | None = None
     vars: dict[str, Any] = field(default_factory=dict)
     awaiting_input: bool = False
+    bot_message_ids: list[int] = field(default_factory=list)
 
     def to_row(self) -> dict[str, Any]:
         return {
@@ -38,6 +39,7 @@ class Session:
             "current_node_id": self.current_node_id,
             "vars": self.vars,
             "awaiting_input": self.awaiting_input,
+            "bot_message_ids": self.bot_message_ids,
         }
 
 
@@ -54,6 +56,7 @@ def load(telegram_id: int) -> Session:
         current_node_id=r.get("current_node_id"),
         vars=r.get("vars") or {},
         awaiting_input=bool(r.get("awaiting_input")),
+        bot_message_ids=r.get("bot_message_ids") or [],
     )
 
 

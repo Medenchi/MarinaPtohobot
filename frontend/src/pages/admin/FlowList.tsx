@@ -140,6 +140,9 @@ export default function FlowList() {
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="serif-heading text-xl">Конструктор</h1>
           <div className="flex gap-3">
+            <Link to="/admin/bots" className="text-xs text-muted hover:text-ink">
+              боты
+            </Link>
             <Link to="/admin/categories" className="text-xs text-muted hover:text-ink">
               категории
             </Link>

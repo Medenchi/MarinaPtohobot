@@ -469,3 +469,126 @@ export async function compressImage(file: File, maxSide = 1600): Promise<Blob> {
   }
 }
 
+
+// ---------- Child bots (multi-bot) ----------
+
+export interface ChildBot {
+  id: number;
+  token: string;
+  bot_username: string | null;
+  display_name: string | null;
+  description: string | null;
+  owner_telegram_id: number | null;
+  is_enabled: boolean;
+  flow_id: string | null;
+  created_at: string;
+}
+
+export async function listChildBots(): Promise<ChildBot[]> {
+  const { data, error } = await getSupabase("admin")
+    .from("child_bots")
+    .select("*")
+    .order("id", { ascending: false });
+  if (error) throw error;
+  return (data as ChildBot[]) || [];
+}
+
+export async function createChildBot(token: string): Promise<ChildBot> {
+  const { data, error } = await getSupabase("admin")
+    .from("child_bots")
+    .insert({ token: token.trim(), is_enabled: true })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as ChildBot;
+}
+
+export async function updateChildBot(
+  id: number, patch: Partial<ChildBot>,
+): Promise<ChildBot> {
+  const { data, error } = await getSupabase("admin")
+    .from("child_bots")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as ChildBot;
+}
+
+export async function deleteChildBot(id: number): Promise<void> {
+  const { error } = await getSupabase("admin")
+    .from("child_bots")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// ---------- Telegram Bot API direct (via bot's token) ----------
+// Используется в /admin/bots для real-time изменений: имя, описание, аватарка,
+// команды. Все вызовы идут с фронта напрямую в api.telegram.org (никакой
+// миддлваре, токен показывается только админу, всё проходит через HTTPS).
+
+const TG = (token: string, method: string) =>
+  `https://api.telegram.org/bot${token}/${method}`;
+
+async function tgCall(token: string, method: string, body?: unknown): Promise<unknown> {
+  const r = await fetch(TG(token, method), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.description || `TG ${method} failed`);
+  return j.result;
+}
+
+export interface TgBotMe {
+  id: number;
+  username: string;
+  first_name: string;
+  can_join_groups: boolean;
+  can_read_all_group_messages: boolean;
+  supports_inline_queries: boolean;
+}
+
+export async function tgGetMe(token: string): Promise<TgBotMe> {
+  return (await tgCall(token, "getMe")) as TgBotMe;
+}
+export async function tgGetMyName(token: string, language_code = ""): Promise<{ name: string }> {
+  return (await tgCall(token, "getMyName", { language_code })) as { name: string };
+}
+export async function tgGetMyDescription(token: string, language_code = ""): Promise<{ description: string }> {
+  return (await tgCall(token, "getMyDescription", { language_code })) as { description: string };
+}
+export async function tgGetMyShortDescription(token: string, language_code = ""): Promise<{ short_description: string }> {
+  return (await tgCall(token, "getMyShortDescription", { language_code })) as { short_description: string };
+}
+export async function tgGetMyCommands(token: string, language_code = ""): Promise<{ command: string; description: string }[]> {
+  return (await tgCall(token, "getMyCommands", { language_code })) as { command: string; description: string }[];
+}
+export async function tgSetMyName(token: string, name: string, language_code = ""): Promise<unknown> {
+  return tgCall(token, "setMyName", { name, language_code });
+}
+export async function tgSetMyDescription(token: string, description: string, language_code = ""): Promise<unknown> {
+  return tgCall(token, "setMyDescription", { description, language_code });
+}
+export async function tgSetMyShortDescription(token: string, short_description: string, language_code = ""): Promise<unknown> {
+  return tgCall(token, "setMyShortDescription", { short_description, language_code });
+}
+export async function tgSetMyCommands(token: string, commands: { command: string; description: string }[], language_code = ""): Promise<unknown> {
+  return tgCall(token, "setMyCommands", { commands, language_code });
+}
+export async function tgDeleteMyCommands(token: string, language_code = ""): Promise<unknown> {
+  return tgCall(token, "deleteMyCommands", { language_code });
+}
+
+/** Загрузка аватарки (multipart). Bot API: setMyProfilePhoto, нужен File. */
+export async function tgSetMyProfilePhoto(token: string, file: File): Promise<unknown> {
+  const fd = new FormData();
+  fd.append("photo", file);
+  const r = await fetch(TG(token, "setMyProfilePhoto"), { method: "POST", body: fd });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.description || "setMyProfilePhoto failed");
+  return j.result;
+}

@@ -19,6 +19,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, Literal, TypedDict
 
+from app.bot.runtime.format import find_format_issues
+
 Level = Literal["error", "warning", "hint"]
 
 
@@ -163,6 +165,28 @@ def validate_graph(graph: dict[str, Any]) -> list[Issue]:
                                 "message": f"Кнопка ведёт на «{tgt}», которого нет",
                             }
                         )
+
+    # ----- Лёгкая разметка ~b:..~ ~link:..~ ~emoji:..~ -----
+    def _walk(v: Any, nid: str | None) -> None:
+        if isinstance(v, str):
+            for msg in find_format_issues(v):
+                issues.append(
+                    {
+                        "level": "warning",
+                        "node_id": nid,
+                        "code": "format_issue",
+                        "message": msg,
+                    }
+                )
+        elif isinstance(v, list):
+            for item in v:
+                _walk(item, nid)
+        elif isinstance(v, dict):
+            for val in v.values():
+                _walk(val, nid)
+
+    for n in nodes:
+        _walk(n.get("params"), n.get("id"))
 
     # Достижимость от триггеров
     reachable: set[str] = set()

@@ -5,6 +5,7 @@ import LoginPage from "@/pages/Login";
 import FlowList from "@/pages/admin/FlowList";
 import Constructor from "@/pages/admin/Constructor";
 import Categories from "@/pages/admin/Categories";
+import Bots from "@/pages/admin/Bots";
 import Outfits from "@/pages/mama/Outfits";
 import Courses from "@/pages/mama/Courses";
 import Bookings from "@/pages/mama/Bookings";
@@ -31,6 +32,14 @@ export default function App() {
         element={
           <AuthGuard role="admin" loginPath="/admin/login">
             <FlowList />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/admin/bots"
+        element={
+          <AuthGuard role="admin" loginPath="/admin/login">
+            <Bots />
           </AuthGuard>
         }
       />

@@ -462,3 +462,63 @@ styles ilike "%типаж%" + покажи топ-5 через send_album.
   }
 }
 ```
+
+---
+
+## 🆕 v2: Лёгкая разметка `~tag:...~`
+
+Вместо HTML в любом строковом `params` можно писать:
+
+| Запись | Что значит |
+|---|---|
+| `~b:текст~` | жирный |
+| `~i:текст~` | курсив |
+| `~u:текст~` | подчёркнутый |
+| `~s:текст~` | зачёркнутый |
+| `~code:текст~` | моноширинный |
+| `~spoiler:текст~` | скрытый текст |
+| `~q:текст~` | цитата |
+| `~qx:длинный текст~` | раскрывающаяся цитата |
+| `~link:https://x.com\|написать~` | ссылка |
+| `~emoji:5368324170671202286\|⭐~` | Premium-эмодзи с fallback |
+
+⚠ В тексте inline-кнопок (`buttons[].text`) разметку и premium-эмодзи
+Telegram НЕ парсит. Эмодзи можно ставить как обычный текст.
+
+## 🆕 v2: ещё блоки
+
+- **`delete_last_message`** (`count: 1`) — стереть последние N сообщений бота
+- **`clear_chat`** — стереть все сообщения бота за сессию
+- **`ask_poll`** (`question`, `options`, `variable`, `multiple: bool`) — нативный TG-опрос вместо inline-кнопок, результат → vars
+- **`set_bot_name`** / **`set_bot_description`** / **`set_bot_short_description`** / **`set_bot_avatar`** — бот меняет своё имя/описание/аватарку
+- **`send_colored_buttons`** (`text`, `buttons` с полем `color: green|red|yellow|blue|purple|orange|black|white`) — эмулирует цвета через эмодзи-кружки
+
+## 🆕 v2: ограничения, о которых нужно знать
+
+1. **Цветные кнопки в обычных чатах НЕ работают** в Telegram API. `send_colored_buttons` использует эмодзи в начале текста.
+2. **Premium-эмодзи в `text` кнопок** Telegram игнорирует. Только в тексте сообщения.
+3. **Удаление сообщений бота** — только младше 48 часов.
+4. **`ask_poll`** — `is_anonymous` принудительно `false` (иначе нет `poll_answer`).
+
+---
+
+## 🆕 v3: Цветные кнопки и Premium-эмодзи (НАТИВНО)
+
+В любой кнопке (`send_message.buttons[]`, `send_colored_buttons.buttons[]` и т.п.) можно использовать:
+
+* **`style`**: `primary` | `success` | `danger` | `warning` | `secondary`
+  — реальные цветные кнопки Telegram (видно всем без подписок)
+* **`icon_custom_emoji_id`**: числовой ID premium-эмодзи (видно всем,
+  если у владельца бота есть Telegram Premium)
+
+```jsonc
+{
+  "text": "Купить Premium",
+  "style": "success",
+  "icon_custom_emoji_id": "5431843232120012345",
+  "next": "buy"
+}
+```
+
+Эти поля приоритетнее старого `color: "green"` (который эмулировал
+через эмодзи-кружок 🟢).
