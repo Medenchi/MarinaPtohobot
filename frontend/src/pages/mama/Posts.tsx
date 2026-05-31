@@ -14,7 +14,7 @@ export default function Posts() {
   const [loading, setLoading] = useState(true);
   const client = getSupabase("mama");
   // Assuming bot username is passed via VITE env or falls back to a placeholder
-  const botUsername = import.meta.env.VITE_BOT_USERNAME || "mzaugolnikova_bot";
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || "MarinaZaugolnikovaBot";
 
   async function load() {
     setLoading(true);
