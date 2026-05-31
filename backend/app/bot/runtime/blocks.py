@@ -443,6 +443,16 @@ async def generate_pdf_block(
     if not isinstance(items, list):
         items = []
 
+    loading_msg = None
+    try:
+        loading_msg = await bot.send_message(
+            chat_id=ctx.chat_id,
+            text="Загружаю... <tg-emoji emoji-id=\"5409020441794734300\">✨</tg-emoji>",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        log.warning("Could not send loading msg: %s", e)
+
     blob = generate_pdf(
         outfits=items,
         client_username=str(
@@ -465,6 +475,11 @@ async def generate_pdf_block(
     # Optional immediate send.
     if p.get("send_now", True):
         caption = str(render(p.get("caption") or "", ctx.template_ctx)) or None
+        if loading_msg:
+            try:
+                await bot.delete_message(chat_id=ctx.chat_id, message_id=loading_msg.message_id)
+            except Exception as e:
+                log.warning("Could not delete loading msg: %s", e)
         await bot.send_document(
             chat_id=ctx.chat_id,
             document=BufferedInputFile(blob, filename=file_name),
@@ -681,6 +696,17 @@ async def generate_pdf_voted(
             {"title": "Понравилось", "outfits": liked_outfits},
             {"title": "Может подойти", "outfits": other_outfits},
         ]
+        
+        loading_msg = None
+        try:
+            loading_msg = await bot.send_message(
+                chat_id=ctx.chat_id,
+                text="Загружаю... <tg-emoji emoji-id=\"5409020441794734300\">✨</tg-emoji>",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            log.warning("Could not send loading msg: %s", e)
+
         blob = generate_pdf_sections(
             sections=sections,
             client_username=str(
@@ -690,6 +716,16 @@ async def generate_pdf_voted(
         )
     else:
         # Не отмечал ничего — без категорий
+        loading_msg = None
+        try:
+            loading_msg = await bot.send_message(
+                chat_id=ctx.chat_id,
+                text="Загружаю... <tg-emoji emoji-id=\"5409020441794734300\">✨</tg-emoji>",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            log.warning("Could not send loading msg: %s", e)
+
         blob = generate_pdf(
             outfits=items,
             client_username=str(
@@ -708,6 +744,17 @@ async def generate_pdf_voted(
     ctx.vars[save_to] = {"url": url, "filename": file_name, "size": len(blob)}
 
     if p.get("send_now", True):
+        caption = str(render(p.get("caption") or "", ctx.template_ctx)) or None
+        if loading_msg:
+            try:
+                await bot.delete_message(chat_id=ctx.chat_id, message_id=loading_msg.message_id)
+            except Exception as e:
+                log.warning("Could not delete loading msg: %s", e)
+        await bot.send_document(
+            chat_id=ctx.chat_id,
+            document=BufferedInputFile(blob, filename=file_name),
+            caption=caption,
+        )
         caption = str(render(p.get("caption") or "", ctx.template_ctx)) or None
         await bot.send_document(
             chat_id=ctx.chat_id,

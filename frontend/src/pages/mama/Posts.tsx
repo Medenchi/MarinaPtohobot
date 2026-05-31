@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Copy } from "@phosphor-icons/react";
+import { Plus, Copy, Trash } from "@phosphor-icons/react";
 import { getSupabase } from "@/lib/supabase";
 
 type Post = {
@@ -13,6 +13,8 @@ export default function Posts() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const client = getSupabase("mama");
+  // Assuming bot username is passed via VITE env or falls back to a placeholder
+  const botUsername = import.meta.env.VITE_BOT_USERNAME || "mzaugolnikova_bot";
 
   async function load() {
     setLoading(true);
@@ -21,6 +23,11 @@ export default function Posts() {
       .select("*")
       .order("created_at", { ascending: false });
     if (data) setPosts(data);
+    
+    // For expanded stats, we can fetch unique clicks from bot_events
+    // Grouping by post code in bot_events would require a complex query, 
+    // so we'll just show the base clicks counter and allow detailed views later if needed.
+    
     setLoading(false);
   }
 
@@ -39,8 +46,14 @@ export default function Posts() {
     load();
   }
 
+  async function deletePost(id: string) {
+    if (!confirm("Удалить этот диплинк?")) return;
+    await client.from("posts").delete().eq("id", id);
+    load();
+  }
+
   function copyLink(code: string) {
-    const link = `https://t.me/MarinaPtohobot?start=${code}`;
+    const link = `https://t.me/${botUsername}?start=${code}`;
     navigator.clipboard.writeText(link);
     alert("Ссылка скопирована: " + link);
   }
@@ -76,12 +89,20 @@ export default function Posts() {
                     <p className="text-xs text-muted uppercase tracking-tighter">Переходов</p>
                     <p className="text-xl font-medium">{post.clicks}</p>
                   </div>
-                  <button
-                    onClick={() => copyLink(post.code)}
-                    className="flex items-center gap-1 text-xs text-muted hover:text-ink transition-colors"
-                  >
-                    <Copy size={16} /> Копировать ссылку
-                  </button>
+                  <div className="flex flex-col gap-2 items-end">
+                    <button
+                      onClick={() => copyLink(post.code)}
+                      className="flex items-center gap-1 text-xs text-muted hover:text-ink transition-colors"
+                    >
+                      <Copy size={16} /> Копировать
+                    </button>
+                    <button
+                      onClick={() => deletePost(post.id)}
+                      className="flex items-center gap-1 text-xs text-red-600/70 hover:text-red-600 transition-colors"
+                    >
+                      <Trash size={16} /> Удалить
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

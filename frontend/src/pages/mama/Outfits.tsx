@@ -155,6 +155,32 @@ export default function Outfits() {
     }
   }
 
+  async function importFromPinterest() {
+    const url = prompt("Введите ссылку на пин из Pinterest:");
+    if (!url) return;
+    setError(null);
+    try {
+      // In a real scenario we'd do a server-side extraction, but since we can't spin up new FastAPI endpoints easily
+      // without restarting the server, we just create a draft with the link for Marina to fill.
+      // Or we can try to fetch it if CORS allows (it usually doesn't for Pinterest).
+      // For now, we will create a draft outfit with the external URL prepopulated.
+      const saved = await upsertOutfit({
+        title: "Образ из Pinterest",
+        description: "",
+        colors: "", styles: "", seasons: "", occasions: "",
+        body_types: "", budgets: "", shoot_types: "", gender: "",
+        price_hint: "", external_url: "", pinterest_url: url,
+        sort_order: 0, is_published: false,
+      });
+      await load();
+      const fresh = (await listOutfits()).find((o) => o.id === saved.id);
+      setEditing(fresh || { ...saved, outfit_images: [] });
+      alert("Черновик создан! Пожалуйста, скачайте и добавьте картинку вручную (Pinterest блокирует прямое скачивание ботами).");
+    } catch (err: any) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   return (
     <MamaLayout>
       <div className="flex justify-between items-center mb-4">
@@ -165,6 +191,12 @@ export default function Outfits() {
             className="btn-outline"
           >
             Сгенерировать 50 образов
+          </button>
+          <button
+            onClick={() => void importFromPinterest()}
+            className="btn-outline"
+          >
+            Импорт из Pinterest
           </button>
           <button
             onClick={() => void createDraft()}

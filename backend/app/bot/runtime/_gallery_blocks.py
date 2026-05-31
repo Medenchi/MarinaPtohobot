@@ -54,6 +54,16 @@ async def generate_pdf_grid_block(
     if not items:
         return _advance(node)
 
+    loading_msg = None
+    try:
+        loading_msg = await bot.send_message(
+            chat_id=ctx.chat_id,
+            text="Загружаю... <tg-emoji emoji-id=\"5409020441794734300\">✨</tg-emoji>",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        log.warning("Could not send loading msg: %s", e)
+
     blob = generate_pdf_grid(
         outfits=items,
         client_username=str(
@@ -72,6 +82,11 @@ async def generate_pdf_grid_block(
 
     if p.get("send_now", True):
         caption = str(render(p.get("caption") or "", ctx.template_ctx)) or None
+        if loading_msg:
+            try:
+                await bot.delete_message(chat_id=ctx.chat_id, message_id=loading_msg.message_id)
+            except Exception as e:
+                log.warning("Could not delete loading msg: %s", e)
         await bot.send_document(
             chat_id=ctx.chat_id,
             document=BufferedInputFile(blob, filename=filename),
