@@ -172,10 +172,17 @@ export default function Outfits() {
         price_hint: "", external_url: "", pinterest_url: url,
         sort_order: 0, is_published: false,
       });
+      
+      const client = (await import("@/lib/supabase")).getSupabase("mama");
+      await client.from("pinterest_imports").insert([{
+        pinterest_url: url,
+        outfit_id: saved.id
+      }]);
+      
       await load();
       const fresh = (await listOutfits()).find((o) => o.id === saved.id);
       setEditing(fresh || { ...saved, outfit_images: [] });
-      alert("Черновик создан! Пожалуйста, скачайте и добавьте картинку вручную (Pinterest блокирует прямое скачивание ботами).");
+      alert("Черновик создан! Бот уже побежал за картинкой. Если через 15 секунд она не появится (пин закрыт), загрузите вручную.");
     } catch (err: any) {
       setError(err instanceof Error ? err.message : String(err));
     }

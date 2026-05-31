@@ -20,6 +20,7 @@ from aiogram import Dispatcher
 from app.bot.main import shared_bot
 from app.bot.runtime.engine import make_router
 from app.bot.runtime.preview import poll_preview_requests
+from app.bot.runtime.pinterest import poll_pinterest_imports
 from app.core.config import settings
 
 logging.basicConfig(
@@ -46,6 +47,9 @@ async def _run_preview_poller() -> None:
     log.info("Preview poller started (bot_preview_requests)")
     await poll_preview_requests(bot)
 
+async def _run_pinterest_poller() -> None:
+    log.info("Pinterest poller started (pinterest_imports)")
+    await poll_pinterest_imports()
 
 async def main() -> None:
     if not settings.bot_token:
@@ -55,7 +59,7 @@ async def main() -> None:
         log.error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set. Exiting.")
         sys.exit(1)
 
-    await asyncio.gather(_run_bot(), _run_preview_poller())
+    await asyncio.gather(_run_bot(), _run_preview_poller(), _run_pinterest_poller())
 
 
 if __name__ == "__main__":
